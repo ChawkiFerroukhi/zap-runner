@@ -1,3 +1,4 @@
+import { copilotProviderIds } from '@zap-runner/shared';
 import { z } from 'zod';
 
 const encryptionKey = z.string().transform((value, context) => {
@@ -22,6 +23,23 @@ const envSchema = z.object({
   ENCRYPTION_KEY: encryptionKey,
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(168),
   WEBHOOK_PUBLIC_URL: z.url(),
+  COPILOT_PROVIDER: z.enum(copilotProviderIds).default('gemini'),
+  COPILOT_API_KEY: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value === '' ? undefined : value)),
+  COPILOT_GEMINI_MODELS: z
+    .string()
+    .default('gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((model) => model.trim())
+        .filter((model) => model !== ''),
+    ),
+  COPILOT_OPENAI_MODEL: z.string().default('gpt-5-mini'),
+  COPILOT_ANTHROPIC_MODEL: z.string().default('claude-opus-5-5'),
 });
 
 export type Env = z.infer<typeof envSchema>;

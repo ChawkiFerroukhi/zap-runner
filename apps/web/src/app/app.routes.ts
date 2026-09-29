@@ -35,6 +35,12 @@ export const routes: Routes = [
           import('./features/zaps/zap-builder.page').then((m) => m.ZapBuilderPage),
         title: 'Edit Zap · Zap Runner',
       },
+      {
+        path: 'settings',
+        loadComponent: () =>
+          import('./features/settings/settings.page').then((m) => m.SettingsPage),
+        title: 'Settings · Zap Runner',
+      },
       { path: '', pathMatch: 'full', redirectTo: 'zaps' },
     ],
   },

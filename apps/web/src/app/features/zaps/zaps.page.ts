@@ -6,6 +6,7 @@ import { RegistryStore } from '../../core/registry.store';
 import { timeAgo } from '../../core/time';
 import { ZapsApi } from '../../core/zaps.api';
 import { ZapStatusBadge } from '../../ui/status-badge';
+import { CopilotPanel } from './copilot-panel';
 import { summarize, type ZapSummary } from './zap-summary';
 
 interface ZapRow {
@@ -16,7 +17,7 @@ interface ZapRow {
 
 @Component({
   selector: 'app-zaps-page',
-  imports: [RouterLink, ZapStatusBadge],
+  imports: [RouterLink, ZapStatusBadge, CopilotPanel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -26,6 +27,8 @@ interface ZapRow {
           <a class="btn btn-primary" routerLink="/zaps/new">New Zap</a>
         </div>
       </header>
+
+      <app-copilot-panel />
 
       @if (error(); as message) {
         <p class="notice notice-danger" role="alert">{{ message }}</p>
@@ -59,7 +62,7 @@ interface ZapRow {
                   {{ row.summary.actionName }}
                 </span>
                 <span class="mono truncate muted">{{ row.summary.repository }}</span>
-                <span><app-zap-status [enabled]="row.zap.enabled" /></span>
+                <span><app-zap-status [enabled]="row.zap.enabled" [draft]="row.zap.draft" /></span>
                 <span class="muted">{{ row.updated }}</span>
               </a>
             }

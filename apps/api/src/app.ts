@@ -4,6 +4,8 @@ import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import { authRouter, type AuthRouterDependencies } from './auth/auth.router.js';
 import { authenticate, requireAuth } from './auth/authenticate.js';
+import { copilotRouter } from './copilot/copilot.router.js';
+import type { CopilotService } from './copilot/copilot-service.js';
 import type { DeliveriesRepository } from './deliveries/deliveries.repository.js';
 import type { DeliveryEvents } from './deliveries/delivery-events.js';
 import { webhookRouter, type WebhookRouterDependencies } from './deliveries/webhook.router.js';
@@ -22,6 +24,7 @@ export interface AppDependencies extends AuthRouterDependencies, WebhookRouterDe
   readiness: ReadinessChecks;
   registry: Registry;
   zapService: ZapService;
+  copilot: CopilotService;
   deliveries: DeliveriesRepository;
   events: DeliveryEvents;
   githubFor: GitHubClientFactory;
@@ -57,6 +60,7 @@ export function createApp(deps: AppDependencies): Express {
   });
   api.use('/github', repositoriesRouter(deps.githubFor));
   api.use('/triggers', triggersRouter(deps.registry, deps.zapService, deps.deliveries));
+  api.use('/copilot', copilotRouter(deps.copilot));
   api.use('/zaps', zapsRouter(deps.zapService, deps.deliveries, deps.events));
   app.use('/api', api);
 

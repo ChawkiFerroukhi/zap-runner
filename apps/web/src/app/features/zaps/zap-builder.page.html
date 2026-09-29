@@ -16,13 +16,20 @@
     </div>
   </header>
 
+  @if (copilotExplanation(); as explanation) {
+    <div class="notice notice-accent" role="status">
+      <strong>Drafted by the Copilot.</strong> {{ explanation }} It is saved as a draft. Check each
+      setting, then click Save to finish it and turn it on from its page.
+    </div>
+  }
+
   @if (error(); as message) {
     <p class="notice notice-danger" role="alert">{{ message }}</p>
   }
 
   @if (loaded()) {
     <div class="layout">
-      <form id="zap-form" class="steps" [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <form id="zap-form" class="steps" [formGroup]="form" (ngSubmit)="save(false)" novalidate>
         <section class="panel step">
           <label class="field">
             <span class="field-label">Name</span>

@@ -1,4 +1,4 @@
-import type { SessionUser } from '@zap-runner/shared';
+import { copilotProviderIds, type CopilotProviderId, type SessionUser } from '@zap-runner/shared';
 import { isValidObjectId } from 'mongoose';
 import type { GitHubProfile } from '../github/github-identity.js';
 import { UserModel } from './user.model.js';
@@ -11,6 +11,18 @@ export interface UsersRepository {
   ): Promise<SessionUser>;
   findSessionUser(userId: string): Promise<SessionUser | null>;
   findSealedToken(userId: string): Promise<string | null>;
+  findCopilotKey(userId: string): Promise<StoredCopilotKey | null>;
+  setCopilotKey(userId: string, key: StoredCopilotKey | null): Promise<void>;
+}
+
+export interface StoredCopilotKey {
+  provider: CopilotProviderId;
+  sealed: string;
+  hint: string;
+}
+
+function isProvider(value: unknown): value is CopilotProviderId {
+  return copilotProviderIds.some((id) => id === value);
 }
 
 interface StoredUser {
@@ -57,6 +69,32 @@ export function createUsersRepository(): UsersRepository {
       if (!isValidObjectId(userId)) return null;
       const user = await UserModel.findById(userId, { accessToken: 1 }).lean();
       return user?.accessToken ?? null;
+    },
+
+    async findCopilotKey(userId) {
+      if (!isValidObjectId(userId)) return null;
+      const user = await UserModel.findById(userId, {
+        copilotKey: 1,
+        copilotKeyHint: 1,
+        copilotProvider: 1,
+      }).lean();
+      if (!user?.copilotKey || !isProvider(user.copilotProvider)) return null;
+      return {
+        provider: user.copilotProvider,
+        sealed: user.copilotKey,
+        hint: user.copilotKeyHint ?? '',
+      };
+    },
+
+    async setCopilotKey(userId, key) {
+      await UserModel.updateOne(
+        { _id: userId },
+        {
+          copilotProvider: key?.provider ?? null,
+          copilotKey: key?.sealed ?? null,
+          copilotKeyHint: key?.hint ?? null,
+        },
+      );
     },
   };
 }

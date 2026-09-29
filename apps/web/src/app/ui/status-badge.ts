@@ -33,10 +33,17 @@ export class DeliveryStatusBadge {
 @Component({
   selector: 'app-zap-status',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<span [class]="enabled() ? 'badge badge-success' : 'badge'">{{
-    enabled() ? 'On' : 'Off'
-  }}</span>`,
+  template: `<span [class]="tone()">{{ label() }}</span>`,
 })
 export class ZapStatusBadge {
   readonly enabled = input.required<boolean>();
+  readonly draft = input(false);
+  protected readonly label = computed(() => {
+    if (this.draft()) return 'Draft';
+    return this.enabled() ? 'On' : 'Off';
+  });
+  protected readonly tone = computed(() => {
+    if (this.draft()) return 'badge badge-warning';
+    return this.enabled() ? 'badge badge-success' : 'badge';
+  });
 }

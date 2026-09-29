@@ -27,7 +27,9 @@
     "lmdb": false,
     "msgpackr-extract": false,
     "fsevents": false,
-    "mongodb-memory-server": false
+    "mongodb-memory-server": false,
+    "@google/genai": false,
+    "protobufjs": false
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
