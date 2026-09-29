@@ -1,18 +1,32 @@
 import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { createSessionStore } from './auth/session-store.js';
+import { createDeliveriesRepository } from './deliveries/deliveries.repository.js';
+import { createDeliveryRunner } from './deliveries/delivery-runner.js';
+import { createGitHubClientFactory } from './github/github-client.js';
 import { createGitHubIdentity, oauthScopes } from './github/github-identity.js';
+import { registry } from './integrations/registry.js';
 import { connectDatabase, disconnectDatabase, isDatabaseConnected } from './platform/database.js';
 import { loadEnv } from './platform/env.js';
 import { createLogger } from './platform/logger.js';
 import { createSecretBox } from './platform/secret-box.js';
 import { createUsersRepository } from './users/users.repository.js';
+import { webhookUrlFor } from './zaps/webhook-url.js';
+import { createZapLookup } from './zaps/zap-lookup.js';
+import { createZapService } from './zaps/zap-service.js';
 
 const env = loadEnv(process.env);
 const logger = createLogger(env.LOG_LEVEL);
 let accepting = true;
 
 await connectDatabase(env.MONGO_URL);
+
+const secretBox = createSecretBox(env.ENCRYPTION_KEY);
+const users = createUsersRepository();
+const githubFor = createGitHubClientFactory(users, secretBox);
+const zaps = createZapLookup();
+const deliveries = createDeliveriesRepository();
+const runner = createDeliveryRunner({ registry, zaps, deliveries, githubFor, logger });
 
 const app = createApp({
   logger,
@@ -24,9 +38,20 @@ const app = createApp({
     callbackUrl: `${env.APP_URL}/api/auth/github/callback`,
     scopes: oauthScopes(env.GITHUB_REPO_ACCESS),
   }),
-  users: createUsersRepository(),
+  users,
   sessions: createSessionStore(env.SESSION_TTL_HOURS),
-  secretBox: createSecretBox(env.ENCRYPTION_KEY),
+  secretBox,
+  registry,
+  githubFor,
+  zaps,
+  deliveries,
+  runner,
+  zapService: createZapService({
+    registry,
+    githubFor,
+    secretBox,
+    webhookUrl: webhookUrlFor(env.WEBHOOK_PUBLIC_URL),
+  }),
 });
 
 const server = app.listen(env.PORT, () => {
@@ -55,6 +80,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   forced.unref();
 
   await closeServer(server);
+  await runner.idle();
   await disconnectDatabase();
   logger.info('shutdown complete');
   process.exit(0);

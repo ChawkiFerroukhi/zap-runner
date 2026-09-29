@@ -17,7 +17,7 @@
     "lint": "npm run build -w @zap-runner/shared && eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run build -w @zap-runner/shared && npm run test -w @zap-runner/api",
+    "test": "npm run build -w @zap-runner/shared && npm run test -w @zap-runner/shared -w @zap-runner/api",
     "dev:api": "npm run dev -w @zap-runner/api",
     "dev:web": "npm run start -w @zap-runner/web"
   },

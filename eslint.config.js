@@ -30,6 +30,22 @@ export default tseslint.config(
     },
   },
   {
+    files: ['apps/api/src/**/*.router.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/*.model.js'],
+              message: 'Routers go through a user-scoped repository or service, never a model.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['apps/web/src/**/*.ts'],
     extends: [...angular.configs.tsRecommended],
     processor: angular.processInlineTemplates,

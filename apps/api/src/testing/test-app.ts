@@ -2,10 +2,16 @@ import { randomBytes } from 'node:crypto';
 import { pino } from 'pino';
 import type { Response } from 'supertest';
 import { createApp, type AppDependencies } from '../app.js';
-import type { SessionStore } from '../auth/session-store.js';
+import { createSessionStore, type SessionStore } from '../auth/session-store.js';
+import { createDeliveriesRepository } from '../deliveries/deliveries.repository.js';
+import { createDeliveryRunner, type DeliveryRunner } from '../deliveries/delivery-runner.js';
+import type { GitHubClientFactory } from '../github/github-client.js';
 import type { GitHubIdentity } from '../github/github-identity.js';
-import { createSecretBox } from '../platform/secret-box.js';
-import type { UsersRepository } from '../users/users.repository.js';
+import { registry } from '../integrations/registry.js';
+import { createSecretBox, type SecretBox } from '../platform/secret-box.js';
+import { createUsersRepository, type UsersRepository } from '../users/users.repository.js';
+import { createZapLookup } from '../zaps/zap-lookup.js';
+import { createZapService } from '../zaps/zap-service.js';
 
 export const TEST_APP_URL = 'http://app.test';
 
@@ -31,17 +37,49 @@ export const emptyUsers: UsersRepository = {
   findSealedToken: () => Promise.resolve(null),
 };
 
-export function buildTestApp(overrides: Partial<AppDependencies> = {}) {
-  return createApp({
-    logger: pino({ level: 'silent' }),
+const githubUnavailable: GitHubClientFactory = () => unexpected('githubFor');
+
+export interface TestContext {
+  app: ReturnType<typeof createApp>;
+  runner: DeliveryRunner;
+  secretBox: SecretBox;
+}
+
+export function createTestContext(overrides: Partial<AppDependencies> = {}): TestContext {
+  const logger = pino({ level: 'silent' });
+  const secretBox = overrides.secretBox ?? createSecretBox(randomBytes(32));
+  const githubFor = overrides.githubFor ?? githubUnavailable;
+  const zaps = createZapLookup();
+  const deliveries = createDeliveriesRepository();
+  const runner =
+    overrides.runner ?? createDeliveryRunner({ registry, zaps, deliveries, githubFor, logger });
+
+  const app = createApp({
+    logger,
     readiness: () => ({ database: true, accepting: true }),
     appUrl: TEST_APP_URL,
     identity: unusedIdentity,
-    users: emptyUsers,
-    sessions: emptySessions,
-    secretBox: createSecretBox(randomBytes(32)),
+    users: createUsersRepository(),
+    sessions: createSessionStore(1),
+    registry,
+    zaps,
+    deliveries,
+    zapService: createZapService({
+      registry,
+      githubFor,
+      secretBox,
+      webhookUrl: (zapId) => `https://hooks.test/github?zap=${zapId}`,
+    }),
     ...overrides,
+    secretBox,
+    githubFor,
+    runner,
   });
+  return { app, runner, secretBox };
+}
+
+export function buildTestApp(overrides: Partial<AppDependencies> = {}) {
+  return createTestContext(overrides).app;
 }
 
 export function setCookies(response: Response): string[] {

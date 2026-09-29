@@ -1,18 +1,37 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import type { ApiError } from '@zap-runner/shared';
+import type { z } from 'zod';
 
 export class HttpError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
     message: string,
+    readonly fields?: Record<string, string>,
   ) {
     super(message);
   }
 }
 
-function body(code: string, message: string): ApiError {
-  return { error: { code, message } };
+export function notFoundError(what: string): HttpError {
+  return new HttpError(404, 'not_found', `${what} not found`);
+}
+
+function body(code: string, message: string, fields?: Record<string, string>): ApiError {
+  return fields ? { error: { code, message, fields } } : { error: { code, message } };
+}
+
+export function parseBody<Schema extends z.ZodType>(
+  schema: Schema,
+  value: unknown,
+): z.infer<Schema> {
+  const result = schema.safeParse(value);
+  if (result.success) return result.data;
+  const fields: Record<string, string> = {};
+  for (const issue of result.error.issues) {
+    fields[issue.path.join('.') || 'body'] ??= issue.message;
+  }
+  throw new HttpError(400, 'invalid_request', 'The request body is invalid', fields);
 }
 
 export const notFound: RequestHandler = (_req, res) => {
@@ -21,7 +40,7 @@ export const notFound: RequestHandler = (_req, res) => {
 
 export const errorHandler: ErrorRequestHandler = (error: unknown, req, res, _next) => {
   if (error instanceof HttpError) {
-    res.status(error.status).json(body(error.code, error.message));
+    res.status(error.status).json(body(error.code, error.message, error.fields));
     return;
   }
   req.log.error({ err: error }, 'unhandled error');

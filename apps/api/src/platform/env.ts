@@ -21,6 +21,7 @@ const envSchema = z.object({
   GITHUB_REPO_ACCESS: z.enum(['public', 'all']).default('public'),
   ENCRYPTION_KEY: encryptionKey,
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(168),
+  WEBHOOK_PUBLIC_URL: z.url(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -3,14 +3,25 @@ import express, { type Express } from 'express';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import { authRouter, type AuthRouterDependencies } from './auth/auth.router.js';
-import { authenticate } from './auth/authenticate.js';
+import { authenticate, requireAuth } from './auth/authenticate.js';
+import type { DeliveriesRepository } from './deliveries/deliveries.repository.js';
+import { webhookRouter, type WebhookRouterDependencies } from './deliveries/webhook.router.js';
+import type { GitHubClientFactory } from './github/github-client.js';
+import { repositoriesRouter } from './github/repositories.router.js';
 import { errorHandler, notFound } from './http/errors.js';
 import { healthRouter, type ReadinessChecks } from './http/health.js';
 import { requireSameOrigin } from './http/same-origin.js';
+import type { Registry } from './integrations/registry.js';
+import type { ZapService } from './zaps/zap-service.js';
+import { zapsRouter } from './zaps/zaps.router.js';
 
-export interface AppDependencies extends AuthRouterDependencies {
+export interface AppDependencies extends AuthRouterDependencies, WebhookRouterDependencies {
   logger: Logger;
   readiness: ReadinessChecks;
+  registry: Registry;
+  zapService: ZapService;
+  deliveries: DeliveriesRepository;
+  githubFor: GitHubClientFactory;
 }
 
 export function createApp(deps: AppDependencies): Express {
@@ -31,12 +42,18 @@ export function createApp(deps: AppDependencies): Express {
   );
 
   app.use('/api', healthRouter(deps.readiness));
+  app.use('/webhooks', webhookRouter(deps));
 
   const api = express.Router();
   api.use(requireSameOrigin(deps.appUrl));
   api.use(express.json({ limit: '100kb' }));
   api.use(authenticate(deps.sessions, deps.users));
   api.use('/auth', authRouter(deps));
+  api.get('/registry', requireAuth, (_req, res) => {
+    res.json(deps.registry.describe());
+  });
+  api.use('/github', repositoriesRouter(deps.githubFor));
+  api.use('/zaps', zapsRouter(deps.zapService, deps.deliveries));
   app.use('/api', api);
 
   app.use(notFound);
