@@ -1,10 +1,13 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
+import { CopilotDrafts } from '../core/copilot-drafts';
+import { CopilotDialog } from '../features/zaps/copilot-dialog';
+import { CopilotActivity } from './copilot-activity';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, CopilotDialog, CopilotActivity],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="shell">
@@ -13,6 +16,9 @@ import { AuthService } from '../core/auth.service';
         <nav aria-label="Primary" class="nav">
           <p class="label">Workspace</p>
           <a routerLink="/zaps" routerLinkActive="active" ariaCurrentWhenActive="page">Zaps</a>
+          <a routerLink="/settings" routerLinkActive="active" ariaCurrentWhenActive="page"
+            >Settings</a
+          >
         </nav>
         @if (auth.user(); as user) {
           <div class="account">
@@ -26,6 +32,8 @@ import { AuthService } from '../core/auth.service';
         <router-outlet />
       </main>
     </div>
+    <app-copilot-dialog />
+    <app-copilot-activity />
   `,
   styles: `
     .shell {
@@ -94,9 +102,11 @@ import { AuthService } from '../core/auth.service';
 })
 export class Shell {
   protected readonly auth = inject(AuthService);
+  private readonly drafts = inject(CopilotDrafts);
   private readonly router = inject(Router);
 
   protected async signOut(): Promise<void> {
+    this.drafts.cancel();
     await this.auth.signOut();
     await this.router.navigateByUrl('/sign-in');
   }

@@ -121,17 +121,20 @@ export function createZapService(deps: ZapServiceDependencies): ZapService {
     get: owned,
 
     async create(userId, input) {
-      assertValidZap(input, deps.registry);
+      if (!input.draft) assertValidZap(input, deps.registry);
       return userZaps(userId).create(input);
     },
 
     async update(userId, zapId, input) {
-      assertValidZap(input, deps.registry);
       const current = await owned(userId, zapId);
+      if (input.draft && current.enabled) {
+        throw new HttpError(409, 'zap_enabled', 'Turn the Zap off before saving it as a draft');
+      }
+      if (!input.draft) assertValidZap(input, deps.registry);
       const zaps = userZaps(userId);
 
-      const next = subscriptionOf(input);
-      if (current.enabled && !sameSubscription(subscriptionOf(current), next)) {
+      const next = current.enabled ? subscriptionOf(input) : null;
+      if (current.enabled && next && !sameSubscription(subscriptionOf(current), next)) {
         const webhook = await subscribe(userId, zapId, next);
         await zaps.setSubscription(zapId, webhook);
         await unsubscribe(userId, current.webhook);
@@ -145,6 +148,13 @@ export function createZapService(deps: ZapServiceDependencies): ZapService {
     async enable(userId, zapId) {
       const zap = await owned(userId, zapId);
       if (zap.enabled) return zap;
+      if (zap.draft) {
+        throw new HttpError(
+          409,
+          'zap_is_draft',
+          'Finish the draft and save it before turning it on',
+        );
+      }
       const webhook = await subscribe(userId, zapId, subscriptionOf(zap));
       const enabled = await userZaps(userId).setSubscription(zapId, webhook);
       if (!enabled) throw notFoundError('Zap');

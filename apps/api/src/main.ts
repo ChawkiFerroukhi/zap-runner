@@ -1,6 +1,9 @@
 import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { createSessionStore } from './auth/session-store.js';
+import { createCopilotModels } from './copilot/copilot-providers.js';
+import { createPendingDrafts } from './copilot/pending-drafts.js';
+import { createCopilotService } from './copilot/copilot-service.js';
 import { createDeliveriesRepository } from './deliveries/deliveries.repository.js';
 import { createDeliveryEvents } from './deliveries/delivery-events.js';
 import { createDeliveryRunner } from './deliveries/delivery-runner.js';
@@ -29,6 +32,12 @@ const zaps = createZapLookup();
 const events = createDeliveryEvents();
 const deliveries = createDeliveriesRepository(events);
 const runner = createDeliveryRunner({ registry, zaps, deliveries, githubFor, logger });
+const zapService = createZapService({
+  registry,
+  githubFor,
+  secretBox,
+  webhookUrl: webhookUrlFor(env.WEBHOOK_PUBLIC_URL),
+});
 
 const app = createApp({
   logger,
@@ -49,11 +58,22 @@ const app = createApp({
   deliveries,
   events,
   runner,
-  zapService: createZapService({
-    registry,
-    githubFor,
+  zapService,
+  copilot: createCopilotService({
+    models: createCopilotModels({
+      geminiModels: env.COPILOT_GEMINI_MODELS,
+      openaiModel: env.COPILOT_OPENAI_MODEL,
+      anthropicModel: env.COPILOT_ANTHROPIC_MODEL,
+    }),
+    users,
     secretBox,
-    webhookUrl: webhookUrlFor(env.WEBHOOK_PUBLIC_URL),
+    registry,
+    zaps: zapService,
+    githubFor,
+    pending: createPendingDrafts(),
+    serverKey: env.COPILOT_API_KEY
+      ? { provider: env.COPILOT_PROVIDER, apiKey: env.COPILOT_API_KEY }
+      : undefined,
   }),
 });
 

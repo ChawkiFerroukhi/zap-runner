@@ -71,6 +71,37 @@ describe('zap lifecycle', () => {
     });
   });
 
+  it('saves an unfinished draft without validating it, and refuses to turn it on', async () => {
+    const zap = commentZap();
+    const created = await send('post', '/api/zaps', {
+      ...zap,
+      draft: true,
+      trigger: { ...zap.trigger, config: { repository: '' } },
+      action: { ...zap.action, config: { ...zap.action.config, body: 'Hi {{pr.reviewer}}' } },
+    }).expect(201);
+    const draftId = zapFrom(created).id;
+    expect(created.body).toMatchObject({ draft: true, enabled: false });
+
+    const refused = await send('post', `/api/zaps/${draftId}/enable`).expect(409);
+    expect(errorFrom(refused).code).toBe('zap_is_draft');
+    expect(github.requestsTo('POST', /\/hooks$/)).toHaveLength(0);
+  });
+
+  it('validates a draft when it is saved as finished, then allows turning it on', async () => {
+    const created = await send('post', '/api/zaps', { ...commentZap(), draft: true }).expect(201);
+    const zapId = zapFrom(created).id;
+
+    const broken = commentZap();
+    await send('put', `/api/zaps/${zapId}`, {
+      ...broken,
+      action: { ...broken.action, config: { ...broken.action.config, body: 'Hi {{pr.reviewer}}' } },
+    }).expect(400);
+
+    const finished = await send('put', `/api/zaps/${zapId}`, commentZap()).expect(200);
+    expect(finished.body).toMatchObject({ draft: false });
+    await send('post', `/api/zaps/${zapId}/enable`).expect(200);
+  });
+
   it('treats a webhook already deleted on GitHub as removed', async () => {
     const created = await send('post', '/api/zaps', commentZap()).expect(201);
     await send('post', `/api/zaps/${zapFrom(created).id}/enable`).expect(200);

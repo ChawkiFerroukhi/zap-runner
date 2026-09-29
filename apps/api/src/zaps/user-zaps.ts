@@ -36,7 +36,7 @@ export function userZaps(userId: string): UserZaps {
       if (!isValidObjectId(zapId)) return null;
       const zap = await ZapModel.findOneAndUpdate(
         owned(zapId),
-        { name: input.name, trigger: input.trigger, action: input.action },
+        { name: input.name, draft: input.draft, trigger: input.trigger, action: input.action },
         { returnDocument: 'after', lean: true },
       );
       return zap ? toZapDto(zap) : null;

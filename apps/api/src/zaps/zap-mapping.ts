@@ -12,6 +12,7 @@ export interface StoredZap {
   userId: { toString(): string };
   name: string;
   enabled: boolean;
+  draft?: boolean | null | undefined;
   trigger: { type: string; config?: unknown };
   action: { type: string; config?: unknown };
   webhook?: StoredWebhook | null | undefined;
@@ -28,6 +29,7 @@ export function toZapDto(zap: StoredZap): ZapDto {
     id: zap._id.toString(),
     name: zap.name,
     enabled: zap.enabled,
+    draft: zap.draft ?? false,
     trigger: { type: zap.trigger.type, config: storedConfig(zap.trigger.config) },
     action: { type: zap.action.type, config: storedConfig(zap.action.config) },
     webhook: zap.webhook

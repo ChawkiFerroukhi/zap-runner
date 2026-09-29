@@ -23,6 +23,7 @@ const zapSchema = new Schema(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     name: { type: String, required: true },
     enabled: { type: Boolean, required: true, default: false },
+    draft: { type: Boolean, required: true, default: false },
     trigger: { type: stepSchema, required: true },
     action: { type: stepSchema, required: true },
     webhook: { type: webhookSchema, default: null },

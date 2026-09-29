@@ -11,11 +11,14 @@ export const stepInputSchema = z.object({
 
 export const zapInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  draft: z.boolean().default(false),
   trigger: stepInputSchema,
   action: stepInputSchema,
 });
 
 export type ZapInput = z.infer<typeof zapInputSchema>;
+
+export type ZapInputBody = z.input<typeof zapInputSchema>;
 
 export interface ZapStep {
   type: string;
@@ -32,6 +35,7 @@ export interface ZapDto {
   id: string;
   name: string;
   enabled: boolean;
+  draft: boolean;
   trigger: ZapStep;
   action: ZapStep;
   webhook: ZapWebhook | null;

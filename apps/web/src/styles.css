@@ -554,3 +554,9 @@ dl.properties dd {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+.notice-accent {
+  border-color: color-mix(in srgb, var(--color-accent-text) 30%, transparent);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+}

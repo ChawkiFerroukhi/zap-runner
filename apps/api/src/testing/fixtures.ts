@@ -23,6 +23,7 @@ export async function signIn(login: string, secretBox: SecretBox): Promise<Signe
 export function commentZap(overrides: Partial<ZapInput> = {}): ZapInput {
   return {
     name: 'Thank PR authors',
+    draft: false,
     trigger: {
       type: 'github.pull_request.opened',
       config: { repository: 'chawki/playground', ignoreDrafts: false },

@@ -55,6 +55,35 @@ set that can register webhooks and post comments:
 
 Tokens are encrypted with AES-256-GCM before they are stored.
 
+## Copilot
+
+The Zaps page has a Copilot that turns a sentence such as "When a pull request is opened, comment
+thanks" into a Zap. The draft is saved turned off and opens in the builder, so nothing runs until you
+review it and turn it on.
+
+It needs an API key from one of three providers, chosen per user under Settings:
+
+| Provider      | Cost                             | Where to get a key                            |
+| ------------- | -------------------------------- | --------------------------------------------- |
+| Google Gemini | Free tier, no card, rate limited | <https://aistudio.google.com/apikey>          |
+| Anthropic     | Paid, billed by usage            | <https://console.anthropic.com/settings/keys> |
+
+Keys are verified with the provider, stored encrypted, and only their last four characters are shown
+again. `COPILOT_PROVIDER` and `COPILOT_API_KEY` in `.env` set an optional server-wide fallback key.
+Without any key the rest of the app works unchanged.
+
+Gemini's free models are sometimes overloaded, so `COPILOT_GEMINI_MODELS` is an ordered list: when
+one model answers "overloaded" or "rate limited", the next is tried.
+
+How a draft is produced:
+
+1. The model receives the registry (triggers, actions, their settings and fields) and the user's
+   admin repositories, and must answer in a JSON schema (structured outputs).
+2. The answer is validated exactly like a Zap saved from the builder, plus a check that the
+   repository belongs to the user.
+3. If validation fails, the problems are sent back once for a corrected draft. A second failure is
+   reported to the user and nothing is saved.
+
 ## Local development
 
 Requires Node 24 (`nvm use`).

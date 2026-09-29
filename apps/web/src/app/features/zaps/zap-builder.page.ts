@@ -24,6 +24,7 @@ import {
 } from '@zap-runner/shared';
 import { map } from 'rxjs';
 import { toApiError } from '../../core/api-error';
+import { readCopilotHandoff } from '../../core/copilot-handoff';
 import { RegistryStore } from '../../core/registry.store';
 import { timeAgo } from '../../core/time';
 import { ZapsApi } from '../../core/zaps.api';
@@ -90,6 +91,9 @@ export class ZapBuilderPage {
     },
   );
 
+  protected readonly copilotExplanation = signal(
+    readCopilotHandoff(this.router.currentNavigation()?.extras.state ?? history.state),
+  );
   protected readonly loaded = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -229,7 +233,7 @@ export class ZapBuilderPage {
     }
   }
 
-  protected async save(): Promise<void> {
+  protected async save(draft: boolean): Promise<void> {
     this.error.set(null);
     this.fieldErrors.set({});
     const value = this.form.getRawValue();
@@ -239,6 +243,7 @@ export class ZapBuilderPage {
     }
     const input: ZapInput = {
       name: value.name,
+      draft,
       trigger: { type: value.triggerType, config: value.triggerConfig },
       action: { type: value.actionType, config: value.actionConfig },
     };

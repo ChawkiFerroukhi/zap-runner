@@ -12,6 +12,7 @@ interface CannedResponse {
   pattern: RegExp;
   status: number;
   body: unknown;
+  remaining: number;
 }
 
 function urlOf(input: string | URL | Request): URL {
@@ -36,7 +37,7 @@ function json(status: number, body: unknown): Response {
 export interface FakeGitHub {
   requests: RecordedRequest[];
   githubFor: GitHubClientFactory;
-  respond(method: string, pattern: RegExp, status: number, body?: unknown): void;
+  respond(method: string, pattern: RegExp, status: number, body?: unknown, times?: number): void;
   requestsTo(method: string, pattern: RegExp): RecordedRequest[];
 }
 
@@ -73,7 +74,8 @@ export function createFakeGitHub(): FakeGitHub {
       (candidate) => candidate.method === method && candidate.pattern.test(url.pathname),
     );
     if (override) {
-      overrides.splice(overrides.indexOf(override), 1);
+      override.remaining -= 1;
+      if (override.remaining === 0) overrides.splice(overrides.indexOf(override), 1);
       return Promise.resolve(json(override.status, override.body));
     }
     return Promise.resolve(defaultResponse(method, url.pathname));
@@ -83,8 +85,8 @@ export function createFakeGitHub(): FakeGitHub {
     requests,
     githubFor: () =>
       Promise.resolve(new Octokit({ auth: 'test-token', request: { fetch, retries: 0 } })),
-    respond(method, pattern, status, body = { message: 'Canned failure' }) {
-      overrides.push({ method, pattern, status, body });
+    respond(method, pattern, status, body = { message: 'Canned failure' }, times = 1) {
+      overrides.push({ method, pattern, status, body, remaining: times });
     },
     requestsTo(method, pattern) {
       return requests.filter((request) => request.method === method && pattern.test(request.path));

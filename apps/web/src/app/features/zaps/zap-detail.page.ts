@@ -33,7 +33,7 @@ import { monogram, summarize } from './zap-summary';
         <header class="page-header">
           <div class="title">
             <h1 class="truncate">{{ view.zap.name }}</h1>
-            <app-zap-status [enabled]="view.zap.enabled" />
+            <app-zap-status [enabled]="view.zap.enabled" [draft]="view.zap.draft" />
           </div>
           <div class="actions">
             @if (confirmingDelete()) {
@@ -48,18 +48,31 @@ import { monogram, summarize } from './zap-summary';
               <button type="button" class="btn btn-ghost" (click)="confirmingDelete.set(true)">
                 Delete
               </button>
-              <a class="btn" [routerLink]="['/zaps', view.zap.id, 'edit']">Edit</a>
-              <button
-                type="button"
-                [class]="view.zap.enabled ? 'btn' : 'btn btn-primary'"
-                [disabled]="busy()"
-                (click)="toggle(view.zap)"
-              >
-                {{ busy() ? 'Working…' : view.zap.enabled ? 'Turn off' : 'Turn on' }}
-              </button>
+              @if (view.zap.draft) {
+                <a class="btn btn-primary" [routerLink]="['/zaps', view.zap.id, 'edit']"
+                  >Finish draft</a
+                >
+              } @else {
+                <a class="btn" [routerLink]="['/zaps', view.zap.id, 'edit']">Edit</a>
+                <button
+                  type="button"
+                  [class]="view.zap.enabled ? 'btn' : 'btn btn-primary'"
+                  [disabled]="busy()"
+                  (click)="toggle(view.zap)"
+                >
+                  {{ busy() ? 'Working…' : view.zap.enabled ? 'Turn off' : 'Turn on' }}
+                </button>
+              }
             }
           </div>
         </header>
+
+        @if (view.zap.draft) {
+          <p class="notice notice-warning" role="status">
+            This Zap is a draft. Open it, check each setting and click Save to finish it. Drafts
+            cannot be turned on.
+          </p>
+        }
 
         <div class="steps">
           <section class="panel step" aria-labelledby="trigger-title">

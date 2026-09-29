@@ -1,8 +1,12 @@
 import { randomBytes } from 'node:crypto';
+import type { CopilotProviderId } from '@zap-runner/shared';
 import { pino } from 'pino';
 import type { Response } from 'supertest';
 import { createApp, type AppDependencies } from '../app.js';
 import { createSessionStore, type SessionStore } from '../auth/session-store.js';
+import type { CopilotModel } from '../copilot/copilot-model.js';
+import { createCopilotService } from '../copilot/copilot-service.js';
+import { createPendingDrafts } from '../copilot/pending-drafts.js';
 import { createDeliveriesRepository } from '../deliveries/deliveries.repository.js';
 import { createDeliveryEvents, type DeliveryEvents } from '../deliveries/delivery-events.js';
 import { createDeliveryRunner, type DeliveryRunner } from '../deliveries/delivery-runner.js';
@@ -36,6 +40,8 @@ export const emptyUsers: UsersRepository = {
   upsertFromGitHub: () => unexpected('upsertFromGitHub'),
   findSessionUser: () => Promise.resolve(null),
   findSealedToken: () => Promise.resolve(null),
+  findCopilotKey: () => Promise.resolve(null),
+  setCopilotKey: () => Promise.resolve(),
 };
 
 const githubUnavailable: GitHubClientFactory = () => unexpected('githubFor');
@@ -47,7 +53,29 @@ export interface TestContext {
   events: DeliveryEvents;
 }
 
-export function createTestContext(overrides: Partial<AppDependencies> = {}): TestContext {
+export interface TestOptions {
+  copilotModel?: CopilotModel;
+  serverCopilotKey?: { provider: CopilotProviderId; apiKey: string };
+}
+
+function unusedCopilotModel(id: CopilotProviderId): CopilotModel {
+  return {
+    provider: {
+      id,
+      name: `Test ${id}`,
+      models: ['test-model'],
+      keyUrl: 'https://keys.test',
+      pricing: 'free-tier',
+    },
+    verifyKey: () => unexpected('verifyKey'),
+    draft: () => unexpected('draft'),
+  };
+}
+
+export function createTestContext(
+  overrides: Partial<AppDependencies> = {},
+  options: TestOptions = {},
+): TestContext {
   const logger = pino({ level: 'silent' });
   const secretBox = overrides.secretBox ?? createSecretBox(randomBytes(32));
   const githubFor = overrides.githubFor ?? githubUnavailable;
@@ -56,22 +84,38 @@ export function createTestContext(overrides: Partial<AppDependencies> = {}): Tes
   const deliveries = createDeliveriesRepository(events);
   const runner =
     overrides.runner ?? createDeliveryRunner({ registry, zaps, deliveries, githubFor, logger });
+  const users = createUsersRepository();
+  const zapService = createZapService({
+    registry,
+    githubFor,
+    secretBox,
+    webhookUrl: (zapId) => `https://hooks.test/github?zap=${zapId}`,
+  });
 
   const app = createApp({
     logger,
     readiness: () => ({ database: true, accepting: true }),
     appUrl: TEST_APP_URL,
     identity: unusedIdentity,
-    users: createUsersRepository(),
+    users,
     sessions: createSessionStore(1),
     registry,
     zaps,
     deliveries,
-    zapService: createZapService({
-      registry,
-      githubFor,
+    zapService,
+    copilot: createCopilotService({
+      models: {
+        gemini: options.copilotModel ?? unusedCopilotModel('gemini'),
+        openai: unusedCopilotModel('openai'),
+        anthropic: unusedCopilotModel('anthropic'),
+      },
+      users,
       secretBox,
-      webhookUrl: (zapId) => `https://hooks.test/github?zap=${zapId}`,
+      registry,
+      zaps: zapService,
+      githubFor,
+      pending: createPendingDrafts(),
+      serverKey: options.serverCopilotKey,
     }),
     ...overrides,
     secretBox,
