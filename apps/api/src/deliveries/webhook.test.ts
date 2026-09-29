@@ -14,6 +14,8 @@ useTestDatabase();
 
 const hookRequestSchema = z.object({ config: z.object({ secret: z.string().min(1) }) });
 
+const commentBodySchema = z.object({ body: z.string() });
+
 const COMMENTS = /\/repos\/chawki\/playground\/issues\/42\/comments$/;
 
 describe('github webhook delivery', () => {
@@ -64,7 +66,9 @@ describe('github webhook delivery', () => {
 
     const comments = github.requestsTo('POST', COMMENTS);
     expect(comments).toHaveLength(1);
-    expect(comments[0]?.body).toEqual({ body: 'Thanks @octocat for "Add rate limiting"' });
+    expect(commentBodySchema.parse(comments[0]?.body).body).toMatch(
+      /^Thanks @octocat for "Add rate limiting"\n\n<!-- zap-runner zap=\w+ -->$/,
+    );
 
     const delivery = await DeliveryModel.findOne().lean();
     expect(delivery).toMatchObject({ status: 'succeeded', missingFields: [] });

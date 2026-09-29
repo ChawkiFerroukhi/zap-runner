@@ -49,6 +49,7 @@ export function defineTrigger<
       description: definition.description,
       configFields: definition.configFields,
       outputFields: definition.outputFields,
+      mappingHints: definition.mappingHints ?? {},
       sample: definition.extract(definition.sample),
     },
     webhookEvent: definition.webhookEvent,

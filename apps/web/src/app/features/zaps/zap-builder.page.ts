@@ -13,6 +13,7 @@ import { FormRecord, NonNullableFormBuilder, ReactiveFormsModule } from '@angula
 import { Router, RouterLink } from '@angular/router';
 import {
   resolveTemplate,
+  templateReferences,
   type ConfigField,
   type ConfigValues,
   type FieldMap,
@@ -44,9 +45,15 @@ function isTemplateKind(field: ConfigField): boolean {
   return field.kind === 'template' || field.kind === 'multiline-template';
 }
 
-function initialValue(field: ConfigField, existing: ConfigValues): string | boolean {
+function initialValue(
+  field: ConfigField,
+  existing: ConfigValues,
+  hints: Record<string, string>,
+): string | boolean {
   const current = existing[field.key];
   if (current !== undefined) return current;
+  const hint = hints[field.key];
+  if (hint !== undefined) return hint;
   if (field.default !== undefined) return field.default;
   return field.kind === 'boolean' ? false : '';
 }
@@ -94,6 +101,7 @@ export class ZapBuilderPage {
   protected readonly actionFields = signal<BoundField[]>([]);
 
   private focusedTemplate: { key: string; element: TemplateElement } | null = null;
+  private boundTriggerId = '';
 
   protected readonly apps = computed(() => this.store.registry()?.apps ?? []);
   protected readonly editing = computed(() => this.zapId() !== undefined);
@@ -165,6 +173,7 @@ export class ZapBuilderPage {
     });
     this.form.controls.triggerType.valueChanges.subscribe(() => {
       this.bindTriggerFields({});
+      this.remapActionFields();
     });
     this.form.controls.actionType.valueChanges.subscribe(() => {
       this.bindActionFields({});
@@ -287,11 +296,32 @@ export class ZapBuilderPage {
     );
     this.bindTriggerFields(zap.trigger.config);
     this.bindActionFields(zap.action.config);
+    this.boundTriggerId = zap.trigger.type;
   }
 
   private selectTrigger(triggerId: string): void {
     this.form.controls.triggerType.setValue(triggerId, { emitEvent: false });
     this.bindTriggerFields({});
+    this.remapActionFields();
+  }
+
+  private remapActionFields(): void {
+    const previous = this.store.trigger(this.boundTriggerId);
+    const next = this.store.trigger(this.form.controls.triggerType.value);
+    this.boundTriggerId = next?.id ?? '';
+    if (!next) return;
+    const available = new Set(next.outputFields.map((field) => field.key));
+    for (const { field, control } of this.actionFields()) {
+      const hint = next.mappingHints[field.key];
+      const current = control.value;
+      if (hint === undefined || typeof current !== 'string') continue;
+      const untouched =
+        current === '' ||
+        current === field.default ||
+        current === previous?.mappingHints[field.key];
+      const broken = templateReferences(current).some((key) => !available.has(key));
+      if (untouched || broken) control.setValue(hint);
+    }
   }
 
   private selectAction(actionId: string): void {
@@ -301,23 +331,25 @@ export class ZapBuilderPage {
 
   private bindTriggerFields(existing: ConfigValues): void {
     const fields = this.store.trigger(this.form.controls.triggerType.value)?.configFields ?? [];
-    this.triggerFields.set(this.bind(this.form.controls.triggerConfig, fields, existing));
+    this.triggerFields.set(this.bind(this.form.controls.triggerConfig, fields, existing, {}));
   }
 
   private bindActionFields(existing: ConfigValues): void {
     const fields = this.store.action(this.form.controls.actionType.value)?.configFields ?? [];
+    const hints = this.store.trigger(this.form.controls.triggerType.value)?.mappingHints ?? {};
     this.focusedTemplate = null;
-    this.actionFields.set(this.bind(this.form.controls.actionConfig, fields, existing));
+    this.actionFields.set(this.bind(this.form.controls.actionConfig, fields, existing, hints));
   }
 
   private bind(
     record: FormRecord<ConfigControl>,
     fields: ConfigField[],
     existing: ConfigValues,
+    hints: Record<string, string>,
   ): BoundField[] {
     for (const key of Object.keys(record.controls)) record.removeControl(key, { emitEvent: false });
     const bound = fields.map((field) => {
-      const control = this.fb.control<string | boolean>(initialValue(field, existing));
+      const control = this.fb.control<string | boolean>(initialValue(field, existing, hints));
       record.addControl(field.key, control, { emitEvent: false });
       return { field, control };
     });

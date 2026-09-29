@@ -44,6 +44,8 @@ export interface PullRequestPayloadOptions {
   repository?: string;
   draft?: boolean;
   number?: number;
+  merged?: boolean;
+  baseBranch?: string;
 }
 
 export function pullRequestPayload(options: PullRequestPayloadOptions = {}) {
@@ -59,11 +61,43 @@ export function pullRequestPayload(options: PullRequestPayloadOptions = {}) {
       body: null,
       html_url: `https://github.com/${fullName}/pull/${number}`,
       draft: options.draft ?? false,
+      merged: options.merged ?? false,
+      merged_by: options.merged ? { login: 'maintainer' } : null,
       user: { login: 'octocat' },
-      base: { ref: 'main' },
+      base: { ref: options.baseBranch ?? 'main' },
       head: { ref: 'feature/rate-limit' },
     },
     repository: { name, full_name: fullName, owner: { login: owner } },
     sender: { login: 'octocat', type: 'User' },
+  };
+}
+
+export interface CommentPayloadOptions {
+  body?: string;
+  onPullRequest?: boolean;
+  repository?: string;
+}
+
+export function commentPayload(options: CommentPayloadOptions = {}) {
+  const fullName = options.repository ?? 'chawki/playground';
+  const [owner = '', name = ''] = fullName.split('/');
+  return {
+    action: 'created',
+    issue: {
+      number: 42,
+      title: 'Add rate limiting',
+      html_url: `https://github.com/${fullName}/pull/42`,
+      user: { login: 'octocat' },
+      ...(options.onPullRequest === false
+        ? {}
+        : { pull_request: { url: 'https://api.github.com/pulls/42' } }),
+    },
+    comment: {
+      body: options.body ?? 'Could you add a test?',
+      html_url: `https://github.com/${fullName}/pull/42#issuecomment-1`,
+      user: { login: 'reviewer' },
+    },
+    repository: { name, full_name: fullName, owner: { login: owner } },
+    sender: { login: 'reviewer' },
   };
 }

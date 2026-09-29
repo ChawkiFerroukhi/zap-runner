@@ -1,6 +1,8 @@
 import type { AppDescriptor, RegistryResponse } from '@zap-runner/shared';
 import type { Action, Trigger } from './definitions.js';
 import { comment } from './github/comment.action.js';
+import { commentCreated } from './github/comment-created.trigger.js';
+import { pullRequestMerged } from './github/pull-request-merged.trigger.js';
 import { pullRequestOpened } from './github/pull-request-opened.trigger.js';
 
 const apps: AppDescriptor[] = [
@@ -17,7 +19,7 @@ const apps: AppDescriptor[] = [
   { id: 'sentry', name: 'Sentry', description: 'Error and performance alerts.', runnable: false },
 ];
 
-const triggers: Trigger[] = [pullRequestOpened];
+const triggers: Trigger[] = [pullRequestOpened, pullRequestMerged, commentCreated];
 
 const actions: Action[] = [comment];
 

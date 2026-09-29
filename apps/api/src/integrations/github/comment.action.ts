@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction, repositoryName, toRepositoryRef } from '../define.js';
 import { githubFailure } from './github-failure.js';
+import { withLoopMarker } from './loop-marker.js';
 
 const config = z.object({
   repository: repositoryName,
@@ -19,8 +20,7 @@ export const comment = defineAction({
       label: 'Comment',
       kind: 'multiline-template',
       required: true,
-      default:
-        'Thanks @{{pr.author}} for opening "{{pr.title}}". A reviewer will be with you shortly.',
+      default: 'Thanks for the update. A maintainer will take a look shortly.',
     },
     {
       key: 'repository',
@@ -28,7 +28,7 @@ export const comment = defineAction({
       kind: 'template',
       required: true,
       default: '{{repo.fullName}}',
-      help: 'owner/name. Maps to the repository that triggered the Zap by default.',
+      help: 'owner/name. Maps to the repository that triggered the Zap.',
     },
     {
       key: 'number',
@@ -36,7 +36,7 @@ export const comment = defineAction({
       kind: 'template',
       required: true,
       default: '{{pr.number}}',
-      help: 'Maps to the pull request that triggered the Zap by default.',
+      help: 'Maps to the pull request or issue that triggered the Zap.',
     },
   ],
   config,
@@ -49,7 +49,7 @@ export const comment = defineAction({
         owner: repository.owner,
         repo: repository.name,
         issue_number: settings.number,
-        body: settings.body,
+        body: withLoopMarker(settings.body, context.zapId),
       });
       return {
         ok: true,

@@ -31,6 +31,7 @@ export interface TriggerDescriptor {
   description: string;
   configFields: ConfigField[];
   outputFields: OutputField[];
+  mappingHints: Record<string, string>;
   sample: FieldMap;
 }
 

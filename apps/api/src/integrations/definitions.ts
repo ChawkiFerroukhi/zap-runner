@@ -34,6 +34,7 @@ export interface TriggerDefinition<
   config: z.ZodType<Config>;
   payload: z.ZodType<Event>;
   outputFields: (OutputField & { key: keyof Output & string })[];
+  mappingHints?: Record<string, string>;
   sample: Event;
   match(event: Event, config: Config): TriggerMatch;
   extract(event: Event): Output;
