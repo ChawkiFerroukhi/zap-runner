@@ -1,0 +1,39 @@
+{
+  "name": "zap-runner",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run build -w @zap-runner/shared && npm run typecheck --workspaces",
+    "lint": "npm run build -w @zap-runner/shared && eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run build -w @zap-runner/shared && npm run test -w @zap-runner/api",
+    "dev:api": "npm run dev -w @zap-runner/api",
+    "dev:web": "npm run start -w @zap-runner/web"
+  },
+  "allowScripts": {
+    "@parcel/watcher": false,
+    "esbuild": false,
+    "lmdb": false,
+    "msgpackr-extract": false,
+    "fsevents": false
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "angular-eslint": "^22.5.0",
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.71.0"
+  }
+}
