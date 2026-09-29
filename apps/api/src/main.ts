@@ -2,6 +2,7 @@ import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { createSessionStore } from './auth/session-store.js';
 import { createDeliveriesRepository } from './deliveries/deliveries.repository.js';
+import { createDeliveryEvents } from './deliveries/delivery-events.js';
 import { createDeliveryRunner } from './deliveries/delivery-runner.js';
 import { createGitHubClientFactory } from './github/github-client.js';
 import { createGitHubIdentity, oauthScopes } from './github/github-identity.js';
@@ -25,7 +26,8 @@ const secretBox = createSecretBox(env.ENCRYPTION_KEY);
 const users = createUsersRepository();
 const githubFor = createGitHubClientFactory(users, secretBox);
 const zaps = createZapLookup();
-const deliveries = createDeliveriesRepository();
+const events = createDeliveryEvents();
+const deliveries = createDeliveriesRepository(events);
 const runner = createDeliveryRunner({ registry, zaps, deliveries, githubFor, logger });
 
 const app = createApp({
@@ -45,6 +47,7 @@ const app = createApp({
   githubFor,
   zaps,
   deliveries,
+  events,
   runner,
   zapService: createZapService({
     registry,
@@ -79,6 +82,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   }, env.SHUTDOWN_TIMEOUT_MS);
   forced.unref();
 
+  events.close();
   await closeServer(server);
   await runner.idle();
   await disconnectDatabase();

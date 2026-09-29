@@ -2,12 +2,18 @@ import { zapInputSchema } from '@zap-runner/shared';
 import { Router } from 'express';
 import { currentAuth, requireAuth } from '../auth/authenticate.js';
 import type { DeliveriesRepository } from '../deliveries/deliveries.repository.js';
+import type { DeliveryEvents } from '../deliveries/delivery-events.js';
+import { streamDeliveries } from '../deliveries/delivery-stream.js';
 import { parseBody } from '../http/errors.js';
 import type { ZapService } from './zap-service.js';
 
 const DELIVERY_PAGE_SIZE = 50;
 
-export function zapsRouter(zaps: ZapService, deliveries: DeliveriesRepository): Router {
+export function zapsRouter(
+  zaps: ZapService,
+  deliveries: DeliveriesRepository,
+  events: DeliveryEvents,
+): Router {
   const router = Router();
   router.use(requireAuth);
 
@@ -46,6 +52,12 @@ export function zapsRouter(zaps: ZapService, deliveries: DeliveriesRepository): 
     const userId = currentAuth(req).user.id;
     const zap = await zaps.get(userId, req.params.zapId);
     res.json(await deliveries.listForZap(userId, zap.id, DELIVERY_PAGE_SIZE));
+  });
+
+  router.get('/:zapId/events', async (req, res) => {
+    const userId = currentAuth(req).user.id;
+    const zap = await zaps.get(userId, req.params.zapId);
+    streamDeliveries(req, res, events, { userId, zapId: zap.id });
   });
 
   return router;

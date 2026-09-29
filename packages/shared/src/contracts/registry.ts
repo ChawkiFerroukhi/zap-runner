@@ -52,3 +52,9 @@ export interface RepositoryOption {
   fullName: string;
   private: boolean;
 }
+
+export interface TriggerSample {
+  source: 'latest-event' | 'sample';
+  receivedAt: string | null;
+  fields: FieldMap;
+}

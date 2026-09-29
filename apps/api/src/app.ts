@@ -5,6 +5,7 @@ import { pinoHttp } from 'pino-http';
 import { authRouter, type AuthRouterDependencies } from './auth/auth.router.js';
 import { authenticate, requireAuth } from './auth/authenticate.js';
 import type { DeliveriesRepository } from './deliveries/deliveries.repository.js';
+import type { DeliveryEvents } from './deliveries/delivery-events.js';
 import { webhookRouter, type WebhookRouterDependencies } from './deliveries/webhook.router.js';
 import type { GitHubClientFactory } from './github/github-client.js';
 import { repositoriesRouter } from './github/repositories.router.js';
@@ -12,6 +13,7 @@ import { errorHandler, notFound } from './http/errors.js';
 import { healthRouter, type ReadinessChecks } from './http/health.js';
 import { requireSameOrigin } from './http/same-origin.js';
 import type { Registry } from './integrations/registry.js';
+import { triggersRouter } from './integrations/triggers.router.js';
 import type { ZapService } from './zaps/zap-service.js';
 import { zapsRouter } from './zaps/zaps.router.js';
 
@@ -21,6 +23,7 @@ export interface AppDependencies extends AuthRouterDependencies, WebhookRouterDe
   registry: Registry;
   zapService: ZapService;
   deliveries: DeliveriesRepository;
+  events: DeliveryEvents;
   githubFor: GitHubClientFactory;
 }
 
@@ -53,7 +56,8 @@ export function createApp(deps: AppDependencies): Express {
     res.json(deps.registry.describe());
   });
   api.use('/github', repositoriesRouter(deps.githubFor));
-  api.use('/zaps', zapsRouter(deps.zapService, deps.deliveries));
+  api.use('/triggers', triggersRouter(deps.registry, deps.zapService, deps.deliveries));
+  api.use('/zaps', zapsRouter(deps.zapService, deps.deliveries, deps.events));
   app.use('/api', api);
 
   app.use(notFound);

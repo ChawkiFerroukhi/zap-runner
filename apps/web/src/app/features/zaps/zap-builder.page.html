@@ -1,0 +1,186 @@
+<div class="page">
+  <a class="breadcrumb" routerLink="/zaps">Zaps</a>
+
+  <header class="page-header">
+    <h1>{{ editing() ? 'Edit Zap' : 'New Zap' }}</h1>
+    <div class="actions">
+      <a class="btn btn-ghost" [routerLink]="editing() ? ['/zaps', zapId()] : ['/zaps']">Cancel</a>
+      <button
+        type="submit"
+        form="zap-form"
+        class="btn btn-primary"
+        [disabled]="saving() || !loaded()"
+      >
+        {{ saving() ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </header>
+
+  @if (error(); as message) {
+    <p class="notice notice-danger" role="alert">{{ message }}</p>
+  }
+
+  @if (loaded()) {
+    <div class="layout">
+      <form id="zap-form" class="steps" [formGroup]="form" (ngSubmit)="save()" novalidate>
+        <section class="panel step">
+          <label class="field">
+            <span class="field-label">Name</span>
+            <input
+              class="input"
+              formControlName="name"
+              placeholder="Thank pull request authors"
+              [attr.aria-invalid]="errorFor('name') ? true : null"
+            />
+            @if (errorFor('name'); as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          </label>
+        </section>
+
+        <section class="panel step" aria-labelledby="trigger-heading">
+          <div class="step-heading">
+            <span class="step-number">1</span>
+            <div>
+              <p class="label">Trigger</p>
+              <h2 id="trigger-heading">When this happens</h2>
+            </div>
+          </div>
+
+          <app-app-picker
+            label="Trigger app"
+            [apps]="apps()"
+            [selected]="value().triggerApp"
+            (choose)="chooseApp('trigger', $event)"
+          />
+
+          @if (triggerOptions().length > 0) {
+            <label class="field">
+              <span class="field-label">Event</span>
+              <select class="select" formControlName="triggerType">
+                @for (option of triggerOptions(); track option.id) {
+                  <option [value]="option.id">{{ option.name }}</option>
+                }
+              </select>
+              @if (trigger(); as trigger) {
+                <span class="field-help">{{ trigger.description }}</span>
+              }
+            </label>
+
+            <div formGroupName="triggerConfig" class="fields">
+              @for (bound of triggerFields(); track bound.field.key) {
+                <app-config-field
+                  [bound]="bound"
+                  [error]="errorFor('trigger.config.' + bound.field.key)"
+                  [repositories]="repositoryChoices()"
+                  [repositoriesError]="repositoriesError()"
+                />
+              }
+            </div>
+          }
+        </section>
+
+        <section class="panel step" aria-labelledby="action-heading">
+          <div class="step-heading">
+            <span class="step-number">2</span>
+            <div>
+              <p class="label">Action</p>
+              <h2 id="action-heading">Do this</h2>
+            </div>
+          </div>
+
+          <app-app-picker
+            label="Action app"
+            [apps]="apps()"
+            [selected]="value().actionApp"
+            (choose)="chooseApp('action', $event)"
+          />
+
+          @if (actionOptions().length > 0) {
+            <label class="field">
+              <span class="field-label">Action</span>
+              <select class="select" formControlName="actionType">
+                @for (option of actionOptions(); track option.id) {
+                  <option [value]="option.id">{{ option.name }}</option>
+                }
+              </select>
+              @if (action(); as action) {
+                <span class="field-help">{{ action.description }}</span>
+              }
+            </label>
+
+            <div formGroupName="actionConfig" class="fields">
+              @for (bound of actionFields(); track bound.field.key) {
+                <app-config-field
+                  [bound]="bound"
+                  [error]="errorFor('action.config.' + bound.field.key)"
+                  (focused)="rememberFocus($event)"
+                />
+              }
+            </div>
+          }
+        </section>
+      </form>
+
+      <aside class="aside">
+        <section class="panel aside-panel" aria-labelledby="fields-heading">
+          <div>
+            <p class="label" id="fields-heading">Available fields</p>
+            <p class="field-help">Click a field to insert it into the focused template.</p>
+          </div>
+          @if (trigger(); as trigger) {
+            <ul class="chips">
+              @for (output of trigger.outputFields; track output.key) {
+                <li>
+                  <button
+                    type="button"
+                    class="chip"
+                    [title]="output.label"
+                    (mousedown)="$event.preventDefault()"
+                    (click)="insertField(output.key)"
+                  >
+                    <span class="mono">{{ output.key }}</span>
+                    <span class="chip-sample truncate">{{ previewFields()[output.key] }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="muted">Choose a trigger to see the fields it provides.</p>
+          }
+        </section>
+
+        <section class="panel aside-panel" aria-labelledby="preview-heading" aria-live="polite">
+          <div>
+            <p class="label" id="preview-heading">Preview</p>
+            <p class="field-help">{{ previewSource() }}</p>
+          </div>
+          @for (item of preview(); track item.key) {
+            <div class="preview-item">
+              <span class="field-label">{{ item.label }}</span>
+              <pre class="preview-output">{{ item.output || ' ' }}</pre>
+              @if (item.missing.length > 0) {
+                <p class="notice notice-warning">
+                  Not provided by this trigger:
+                  @for (key of item.missing; track key) {
+                    <span class="mono">{{ '{{' + key + '}}' }}</span>
+                  }
+                </p>
+              }
+            </div>
+          } @empty {
+            <p class="muted">Choose an action to preview what it will send.</p>
+          }
+        </section>
+      </aside>
+    </div>
+  } @else if (!error()) {
+    <div class="layout" aria-busy="true" aria-label="Loading builder">
+      <div class="steps">
+        <div class="panel step"><span class="skeleton block"></span></div>
+        <div class="panel step"><span class="skeleton block tall"></span></div>
+      </div>
+      <div class="panel aside-panel"><span class="skeleton block tall"></span></div>
+    </div>
+  }
+</div>

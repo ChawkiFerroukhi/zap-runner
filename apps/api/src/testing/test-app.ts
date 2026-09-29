@@ -4,6 +4,7 @@ import type { Response } from 'supertest';
 import { createApp, type AppDependencies } from '../app.js';
 import { createSessionStore, type SessionStore } from '../auth/session-store.js';
 import { createDeliveriesRepository } from '../deliveries/deliveries.repository.js';
+import { createDeliveryEvents, type DeliveryEvents } from '../deliveries/delivery-events.js';
 import { createDeliveryRunner, type DeliveryRunner } from '../deliveries/delivery-runner.js';
 import type { GitHubClientFactory } from '../github/github-client.js';
 import type { GitHubIdentity } from '../github/github-identity.js';
@@ -43,6 +44,7 @@ export interface TestContext {
   app: ReturnType<typeof createApp>;
   runner: DeliveryRunner;
   secretBox: SecretBox;
+  events: DeliveryEvents;
 }
 
 export function createTestContext(overrides: Partial<AppDependencies> = {}): TestContext {
@@ -50,7 +52,8 @@ export function createTestContext(overrides: Partial<AppDependencies> = {}): Tes
   const secretBox = overrides.secretBox ?? createSecretBox(randomBytes(32));
   const githubFor = overrides.githubFor ?? githubUnavailable;
   const zaps = createZapLookup();
-  const deliveries = createDeliveriesRepository();
+  const events = overrides.events ?? createDeliveryEvents();
+  const deliveries = createDeliveriesRepository(events);
   const runner =
     overrides.runner ?? createDeliveryRunner({ registry, zaps, deliveries, githubFor, logger });
 
@@ -74,8 +77,9 @@ export function createTestContext(overrides: Partial<AppDependencies> = {}): Tes
     secretBox,
     githubFor,
     runner,
+    events,
   });
-  return { app, runner, secretBox };
+  return { app, runner, secretBox, events };
 }
 
 export function buildTestApp(overrides: Partial<AppDependencies> = {}) {

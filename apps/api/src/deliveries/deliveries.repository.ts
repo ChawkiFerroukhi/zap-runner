@@ -1,6 +1,7 @@
 import type { ConfigValues, DeliveryDto, DeliverySource, FieldMap } from '@zap-runner/shared';
 import { isValidObjectId, mongo } from 'mongoose';
-import { toDeliveryDto, type StoredAttempt } from './delivery-mapping.js';
+import type { DeliveryEvents } from './delivery-events.js';
+import { toDeliveryDto, toFieldMap, type StoredAttempt } from './delivery-mapping.js';
 import { DeliveryModel } from './delivery.model.js';
 
 export interface NewDelivery {
@@ -35,6 +36,10 @@ export interface DeliveriesRepository {
   claim(deliveryId: string): Promise<ClaimedDelivery | null>;
   finish(deliveryId: string, outcome: DeliveryOutcome): Promise<void>;
   listForZap(userId: string, zapId: string, limit: number): Promise<DeliveryDto[]>;
+  latestFields(
+    userId: string,
+    zapIds: string[],
+  ): Promise<{ fields: FieldMap; receivedAt: Date } | null>;
 }
 
 function eventActionOf(payload: unknown): string | null {
@@ -46,7 +51,14 @@ function isDuplicateKey(error: unknown): boolean {
   return error instanceof mongo.MongoServerError && error.code === 11000;
 }
 
-export function createDeliveriesRepository(): DeliveriesRepository {
+export function createDeliveriesRepository(events?: DeliveryEvents): DeliveriesRepository {
+  async function announce(deliveryId: string): Promise<void> {
+    if (!events) return;
+    const delivery = await DeliveryModel.findById(deliveryId).lean();
+    if (delivery)
+      events.publish({ userId: delivery.userId.toString(), delivery: toDeliveryDto(delivery) });
+  }
+
   return {
     async record(delivery) {
       try {
@@ -56,7 +68,9 @@ export function createDeliveriesRepository(): DeliveriesRepository {
           status: 'queued',
           receivedAt: new Date(),
         });
-        return created._id.toString();
+        const id = created._id.toString();
+        await announce(id);
+        return id;
       } catch (error) {
         if (isDuplicateKey(error)) return null;
         throw error;
@@ -70,6 +84,7 @@ export function createDeliveriesRepository(): DeliveriesRepository {
         { returnDocument: 'after', lean: true },
       );
       if (!delivery) return null;
+      await announce(deliveryId);
       return {
         id: delivery._id.toString(),
         zapId: delivery.zapId.toString(),
@@ -88,6 +103,7 @@ export function createDeliveriesRepository(): DeliveriesRepository {
           ...(attempt ? { $push: { attempts: attempt } } : {}),
         },
       );
+      await announce(deliveryId);
     },
 
     async listForZap(userId, zapId, limit) {
@@ -97,6 +113,19 @@ export function createDeliveriesRepository(): DeliveriesRepository {
         .limit(limit)
         .lean();
       return deliveries.map(toDeliveryDto);
+    },
+
+    async latestFields(userId, zapIds) {
+      if (zapIds.length === 0) return null;
+      const delivery = await DeliveryModel.findOne({
+        userId,
+        zapId: { $in: zapIds },
+        fields: { $ne: null },
+      })
+        .sort({ receivedAt: -1 })
+        .lean();
+      const fields = toFieldMap(delivery?.fields);
+      return delivery && fields ? { fields, receivedAt: delivery.receivedAt } : null;
     },
   };
 }
