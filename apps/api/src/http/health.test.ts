@@ -1,13 +1,9 @@
-import { pino } from 'pino';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../app.js';
+import { buildTestApp } from '../testing/test-app.js';
 
 function appWith(database: boolean, accepting: boolean) {
-  return createApp({
-    logger: pino({ level: 'silent' }),
-    readiness: () => ({ database, accepting }),
-  });
+  return buildTestApp({ readiness: () => ({ database, accepting }) });
 }
 
 describe('health endpoints', () => {

@@ -26,7 +26,8 @@
     "esbuild": false,
     "lmdb": false,
     "msgpackr-extract": false,
-    "fsevents": false
+    "fsevents": false,
+    "mongodb-memory-server": false
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
