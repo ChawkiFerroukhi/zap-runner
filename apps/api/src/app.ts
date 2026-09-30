@@ -8,6 +8,7 @@ import { copilotRouter } from './copilot/copilot.router.js';
 import type { CopilotService } from './copilot/copilot-service.js';
 import type { DeliveriesRepository } from './deliveries/deliveries.repository.js';
 import type { DeliveryEvents } from './deliveries/delivery-events.js';
+import { runsRouter } from './deliveries/runs.router.js';
 import { webhookRouter, type WebhookRouterDependencies } from './deliveries/webhook.router.js';
 import type { GitHubClientFactory } from './github/github-client.js';
 import { repositoriesRouter } from './github/repositories.router.js';
@@ -61,7 +62,20 @@ export function createApp(deps: AppDependencies): Express {
   api.use('/github', repositoriesRouter(deps.githubFor));
   api.use('/triggers', triggersRouter(deps.registry, deps.zapService, deps.deliveries));
   api.use('/copilot', copilotRouter(deps.copilot));
-  api.use('/zaps', zapsRouter(deps.zapService, deps.deliveries, deps.events));
+  api.use(
+    '/runs',
+    runsRouter({ zaps: deps.zapService, deliveries: deps.deliveries, events: deps.events }),
+  );
+  api.use(
+    '/zaps',
+    zapsRouter({
+      zaps: deps.zapService,
+      deliveries: deps.deliveries,
+      events: deps.events,
+      runner: deps.runner,
+      registry: deps.registry,
+    }),
+  );
   app.use('/api', api);
 
   app.use(notFound);

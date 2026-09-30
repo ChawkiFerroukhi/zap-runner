@@ -1,0 +1,212 @@
+<dialog #dialog class="dialog" aria-labelledby="new-zap-title" (cancel)="onCancel($event)">
+  <header class="head">
+    <h2 id="new-zap-title" class="title">{{ title() }}</h2>
+    <button type="button" class="esc" (click)="drafts.close()">Esc</button>
+  </header>
+
+  @switch (drafts.view()) {
+    @case ('choose') {
+      <div class="choices">
+        <button type="button" class="choice" (click)="drafts.chooseDescribe()">
+          <span class="choice-title">Describe it</span>
+          <span class="choice-text"
+            >Write what you want in plain language and review the draft.</span
+          >
+          <span class="choice-hint">“When a PR is opened, comment thanks.”</span>
+        </button>
+        <button type="button" class="choice" (click)="drafts.chooseManual()">
+          <span class="choice-title">Build it manually</span>
+          <span class="choice-text">Pick a trigger and an action yourself.</span>
+          <span class="choice-hint">trigger → action</span>
+        </button>
+      </div>
+    }
+    @case ('describe') {
+      <div class="describe">
+        <form id="describe-form" [formGroup]="describeForm" (ngSubmit)="draft()">
+          <label class="field">
+            <span class="field-label">Describe the Zap</span>
+            <textarea
+              #promptField
+              class="textarea"
+              formControlName="prompt"
+              [rows]="drafts.phase() === 'idle' ? 4 : 2"
+              placeholder="When a pull request is opened, comment to thank the author."
+              [readOnly]="drafts.phase() !== 'idle'"
+              (keydown.meta.enter)="draft()"
+              (keydown.control.enter)="draft()"
+            ></textarea>
+          </label>
+        </form>
+
+        @if (drafts.phase() === 'idle') {
+          <div class="examples">
+            <p class="label">Examples</p>
+            @for (example of examples; track example) {
+              <button type="button" class="example" (click)="useExample(example)">
+                {{ example }}
+              </button>
+            }
+          </div>
+          <div class="describe-footer">
+            <div class="describe-meta">
+              <button type="button" class="back" (click)="drafts.backToChoose()">Back</button>
+              @if (status(); as status) {
+                @if (status.configured && status.provider) {
+                  <span class="hint"
+                    >Uses {{ status.provider.name }}. Change it in
+                    <a routerLink="/settings" (click)="drafts.close()">Settings</a>.</span
+                  >
+                } @else {
+                  <span class="hint"
+                    >No Copilot key yet. Add one in
+                    <a routerLink="/settings" (click)="drafts.close()">Settings</a>.</span
+                  >
+                }
+              }
+            </div>
+            <button
+              type="submit"
+              form="describe-form"
+              class="btn btn-primary draft-button"
+              [disabled]="!canDraft()"
+            >
+              Draft Zap
+            </button>
+          </div>
+        } @else {
+          <div class="tracker">
+            <div
+              class="bar"
+              role="progressbar"
+              aria-label="Drafting progress"
+              [attr.aria-valuenow]="drafts.percent()"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div
+                class="bar-fill"
+                [style.width.%]="drafts.percent()"
+                [class.running]="drafts.phase() === 'working'"
+              ></div>
+            </div>
+
+            <ol class="steps" aria-live="polite">
+              @for (step of drafts.steps(); track step.id) {
+                <li class="step" [attr.data-state]="step.state">
+                  <span class="marker" aria-hidden="true"></span>
+                  <div class="step-text">
+                    <span>{{ step.label }}</span>
+                    @if (drafts.phase() === 'working') {
+                      @for (note of step.notes; track $index) {
+                        <span class="note">{{ note }}</span>
+                      }
+                    }
+                  </div>
+                  @if (step.state === 'active') {
+                    <span class="elapsed">{{ drafts.elapsed() }} s</span>
+                  }
+                </li>
+              }
+            </ol>
+
+            @switch (drafts.phase()) {
+              @case ('working') {
+                <div class="actions">
+                  <button type="button" class="btn-text" (click)="drafts.cancel()">
+                    Cancel draft
+                  </button>
+                  <button type="button" class="btn" (click)="drafts.background()">
+                    Continue in background
+                  </button>
+                </div>
+              }
+              @case ('finalizing') {
+                <p class="finalizing" role="status">
+                  <span class="spin" aria-hidden="true"></span>Finalizing, opening your draft…
+                </p>
+              }
+              @case ('question') {
+                @if (drafts.question(); as question) {
+                  <form class="question" [formGroup]="answerForm" (ngSubmit)="submitAnswer()">
+                    <p class="question-text">{{ question.text }}</p>
+                    @if (question.kind === 'repository') {
+                      @if (question.options.length > 8) {
+                        <input
+                          class="input"
+                          type="search"
+                          placeholder="Filter repositories"
+                          aria-label="Filter repositories"
+                          [value]="filter()"
+                          (input)="filterFrom($event)"
+                        />
+                      }
+                      <div class="options" role="radiogroup" [attr.aria-label]="question.text">
+                        @for (option of filtered(question.options); track option) {
+                          <label class="option" [class.selected]="answerControl.value === option">
+                            <input
+                              type="radio"
+                              name="copilot-answer"
+                              [value]="option"
+                              formControlName="answer"
+                            />
+                            <span class="mono">{{ option }}</span>
+                          </label>
+                        }
+                      </div>
+                    } @else {
+                      <input class="input" formControlName="answer" placeholder="Your answer" />
+                    }
+                    <div class="actions">
+                      <button type="button" class="btn-text" (click)="drafts.dismiss()">
+                        Cancel
+                      </button>
+                      <button type="button" class="btn-text" (click)="drafts.editDescription()">
+                        Edit description
+                      </button>
+                      <button
+                        type="submit"
+                        class="btn btn-primary"
+                        [disabled]="answerControl.value.trim() === ''"
+                      >
+                        Continue
+                      </button>
+                    </div>
+                  </form>
+                }
+              }
+              @case ('unsupported') {
+                <div class="outcome">
+                  <p class="muted">{{ drafts.message() }}</p>
+                  <div class="actions">
+                    <button type="button" class="btn-text" (click)="drafts.dismiss()">Close</button>
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      (click)="drafts.editDescription()"
+                    >
+                      Edit description
+                    </button>
+                  </div>
+                </div>
+              }
+              @case ('failed') {
+                <div class="outcome">
+                  <p class="notice notice-warning">{{ drafts.message() }}</p>
+                  <div class="actions">
+                    <button type="button" class="btn-text" (click)="drafts.editDescription()">
+                      Edit description
+                    </button>
+                    <button type="button" class="btn btn-primary" (click)="drafts.retry()">
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        }
+      </div>
+    }
+  }
+</dialog>

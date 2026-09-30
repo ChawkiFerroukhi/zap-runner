@@ -18,9 +18,9 @@ function isDelivery(value: unknown): value is DeliveryDto {
 
 @Injectable({ providedIn: 'root' })
 export class DeliveryStream {
-  watch(zapId: string): Observable<StreamEvent> {
+  watch(zapId: string | null): Observable<StreamEvent> {
     return new Observable<StreamEvent>((subscriber) => {
-      const source = new EventSource(`/api/zaps/${zapId}/events`);
+      const source = new EventSource(zapId ? `/api/zaps/${zapId}/events` : '/api/runs/events');
       source.onopen = () => {
         subscriber.next({ kind: 'open' });
       };

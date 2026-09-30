@@ -91,9 +91,11 @@ export class ZapBuilderPage {
     },
   );
 
-  protected readonly copilotExplanation = signal(
+  protected readonly copilotPrompt = signal(
     readCopilotHandoff(this.router.currentNavigation()?.extras.state ?? history.state),
   );
+  protected readonly focusedKey = signal<string | null>(null);
+  protected readonly focusedLabel = signal<string | null>(null);
   protected readonly loaded = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -101,7 +103,11 @@ export class ZapBuilderPage {
   protected readonly repositories = signal<RepositoryOption[] | null>(null);
   protected readonly repositoriesError = signal<string | null>(null);
   protected readonly triggerFields = signal<BoundField[]>([]);
-  private readonly sample = signal<TriggerSample | null>(null);
+  private readonly loadedSample = signal<{ triggerId: string; sample: TriggerSample } | null>(null);
+  private readonly sample = computed(() => {
+    const loaded = this.loadedSample();
+    return loaded?.triggerId === this.selectedTriggerId() ? loaded.sample : null;
+  });
   protected readonly actionFields = signal<BoundField[]>([]);
 
   private focusedTemplate: { key: string; element: TemplateElement } | null = null;
@@ -119,6 +125,8 @@ export class ZapBuilderPage {
     const appId = this.value().actionApp;
     return this.store.registry()?.actions.filter((action) => action.appId === appId) ?? [];
   });
+
+  private readonly selectedTriggerId = computed(() => this.value().triggerType);
 
   protected readonly trigger = computed(() => {
     this.store.registry();
@@ -187,7 +195,7 @@ export class ZapBuilderPage {
       void this.initialise(this.zapId());
     });
     effect(() => {
-      const triggerId = this.value().triggerType;
+      const triggerId = this.selectedTriggerId();
       if (triggerId !== '') void this.loadSample(triggerId);
     });
     void this.loadRepositories();
@@ -203,11 +211,40 @@ export class ZapBuilderPage {
     if (control.value !== appId) control.setValue(appId);
   }
 
-  protected rememberFocus({ key, event }: TemplateFocus): void {
+  protected rememberFocus({ key, label, event }: TemplateFocus): void {
     const target = event.target;
     if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
       this.focusedTemplate = { key, element: target };
+      this.focusedKey.set(key);
+      this.focusedLabel.set(label);
     }
+  }
+
+  protected readonly insertLabel = computed(
+    () =>
+      this.focusedLabel() ??
+      this.actionFields().find(({ field }) => field.kind === 'multiline-template')?.field.label ??
+      'the focused field',
+  );
+
+  protected readonly canSave = computed(() => {
+    const value = this.value();
+    if (value.name.trim() === '') return false;
+    const required = this.triggerFields().filter(({ field }) => field.required);
+    return required.every(({ field }) => {
+      const current = value.triggerConfig[field.key];
+      return typeof current === 'boolean' || (current ?? '') !== '';
+    });
+  });
+
+  protected sampleValue(key: string): string {
+    const value = this.previewFields()[key];
+    return value === undefined || value === null || value === '' ? '—' : String(value);
+  }
+
+  protected back(): void {
+    const zapId = this.zapId();
+    void this.router.navigate(zapId ? ['/zaps', zapId] : ['/zaps']);
   }
 
   protected insertField(fieldKey: string): void {
@@ -363,12 +400,11 @@ export class ZapBuilderPage {
   }
 
   private async loadSample(triggerId: string): Promise<void> {
-    this.sample.set(null);
     try {
       const sample = await this.api.triggerSample(triggerId);
-      if (this.value().triggerType === triggerId) this.sample.set(sample);
+      this.loadedSample.set({ triggerId, sample });
     } catch {
-      this.sample.set(null);
+      this.loadedSample.set(null);
     }
   }
 

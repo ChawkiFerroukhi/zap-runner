@@ -1,4 +1,9 @@
-import { configValuesSchema, type ConfigValues, type ZapDto } from '@zap-runner/shared';
+import {
+  configValuesSchema,
+  type ConfigValues,
+  type ZapDto,
+  type ZapLastRun,
+} from '@zap-runner/shared';
 
 export interface StoredWebhook {
   hookId: number;
@@ -24,7 +29,7 @@ export function storedConfig(config: unknown): ConfigValues {
   return configValuesSchema.parse(config ?? {});
 }
 
-export function toZapDto(zap: StoredZap): ZapDto {
+export function toZapDto(zap: StoredZap, lastRun: ZapLastRun | null = null): ZapDto {
   return {
     id: zap._id.toString(),
     name: zap.name,
@@ -39,6 +44,7 @@ export function toZapDto(zap: StoredZap): ZapDto {
           verifiedAt: zap.webhook.verifiedAt?.toISOString() ?? null,
         }
       : null,
+    lastRun,
     createdAt: zap.createdAt.toISOString(),
     updatedAt: zap.updatedAt.toISOString(),
   };

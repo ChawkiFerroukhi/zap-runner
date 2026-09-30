@@ -36,6 +36,11 @@ export const routes: Routes = [
         title: 'Edit Zap · Zap Runner',
       },
       {
+        path: 'runs',
+        loadComponent: () => import('./features/runs/runs.page').then((m) => m.RunsPage),
+        title: 'Runs · Zap Runner',
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./features/settings/settings.page').then((m) => m.SettingsPage),

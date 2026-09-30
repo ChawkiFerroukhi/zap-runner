@@ -6,7 +6,7 @@ const RETRY_MS = 3_000;
 
 export interface StreamFilter {
   userId: string;
-  zapId: string;
+  zapId: string | null;
 }
 
 export function streamDeliveries(
@@ -25,7 +25,8 @@ export function streamDeliveries(
   res.write(`retry: ${RETRY_MS}\n\n`);
 
   const unsubscribe = events.subscribe(({ userId, delivery }) => {
-    if (userId !== filter.userId || delivery.zapId !== filter.zapId) return;
+    if (userId !== filter.userId) return;
+    if (filter.zapId !== null && delivery.zapId !== filter.zapId) return;
     res.write(`id: ${delivery.id}\nevent: delivery\ndata: ${JSON.stringify(delivery)}\n\n`);
   });
   const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), HEARTBEAT_MS);

@@ -244,7 +244,7 @@ export function createCopilotService(deps: CopilotServiceDependencies): CopilotS
           type: 'step',
           step: 'save',
           state: 'done',
-          label: 'Saved, turned off for your review',
+          label: 'Saved as a draft for your review',
         });
         emit({ type: 'drafted', zap, explanation: draft.explanation, model: modelName });
         return true;

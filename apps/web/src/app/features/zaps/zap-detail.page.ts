@@ -8,161 +8,29 @@ import {
   signal,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import type { ZapDto } from '@zap-runner/shared';
+import type { TestRunResult, ZapDto } from '@zap-runner/shared';
 import { toApiError } from '../../core/api-error';
 import { RegistryStore } from '../../core/registry.store';
 import { timeAgo } from '../../core/time';
 import { ZapsApi } from '../../core/zaps.api';
 import { ZapStatusBadge } from '../../ui/status-badge';
+import { TokenText } from '../../ui/token-text';
 import { RunsPanel } from './runs-panel';
 import { monogram, summarize } from './zap-summary';
 
+interface ActionDefinitionRow {
+  key: string;
+  label: string;
+  template: string;
+  resolved: string | null;
+}
+
 @Component({
   selector: 'app-zap-detail-page',
-  imports: [RouterLink, ZapStatusBadge, RunsPanel],
+  imports: [RouterLink, ZapStatusBadge, RunsPanel, TokenText],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="page">
-      <a class="breadcrumb" routerLink="/zaps">Zaps</a>
-
-      @if (error(); as message) {
-        <p class="notice notice-danger" role="alert">{{ message }}</p>
-      }
-
-      @if (view(); as view) {
-        <header class="page-header">
-          <div class="title">
-            <h1 class="truncate">{{ view.zap.name }}</h1>
-            <app-zap-status [enabled]="view.zap.enabled" [draft]="view.zap.draft" />
-          </div>
-          <div class="actions">
-            @if (confirmingDelete()) {
-              <span class="muted confirm">Delete this Zap and its webhook?</span>
-              <button type="button" class="btn" (click)="confirmingDelete.set(false)">
-                Cancel
-              </button>
-              <button type="button" class="btn btn-danger" [disabled]="busy()" (click)="remove()">
-                Delete
-              </button>
-            } @else {
-              <button type="button" class="btn btn-ghost" (click)="confirmingDelete.set(true)">
-                Delete
-              </button>
-              @if (view.zap.draft) {
-                <a class="btn btn-primary" [routerLink]="['/zaps', view.zap.id, 'edit']"
-                  >Finish draft</a
-                >
-              } @else {
-                <a class="btn" [routerLink]="['/zaps', view.zap.id, 'edit']">Edit</a>
-                <button
-                  type="button"
-                  [class]="view.zap.enabled ? 'btn' : 'btn btn-primary'"
-                  [disabled]="busy()"
-                  (click)="toggle(view.zap)"
-                >
-                  {{ busy() ? 'Working…' : view.zap.enabled ? 'Turn off' : 'Turn on' }}
-                </button>
-              }
-            }
-          </div>
-        </header>
-
-        @if (view.zap.draft) {
-          <p class="notice notice-warning" role="status">
-            This Zap is a draft. Open it, check each setting and click Save to finish it. Drafts
-            cannot be turned on.
-          </p>
-        }
-
-        <div class="steps">
-          <section class="panel step" aria-labelledby="trigger-title">
-            <p class="label">Trigger</p>
-            <div class="step-title">
-              <span class="monogram" aria-hidden="true">{{
-                monogram(view.summary.triggerApp)
-              }}</span>
-              <h2 id="trigger-title">{{ view.summary.triggerName }}</h2>
-            </div>
-            <dl class="properties">
-              <dt>App</dt>
-              <dd>{{ view.summary.triggerApp }}</dd>
-              <dt>Repository</dt>
-              <dd class="mono">{{ view.summary.repository }}</dd>
-              <dt>Webhook</dt>
-              <dd>
-                @if (view.zap.webhook; as webhook) {
-                  @if (webhook.verifiedAt) {
-                    <span class="badge badge-success">Verified</span>
-                    <span class="muted"> GitHub confirmed it {{ ago(webhook.verifiedAt) }}</span>
-                  } @else {
-                    <span class="badge badge-warning">Awaiting ping</span>
-                  }
-                } @else {
-                  <span class="muted">Not registered. Turn the Zap on to create it.</span>
-                }
-              </dd>
-            </dl>
-          </section>
-
-          <section class="panel step" aria-labelledby="action-title">
-            <p class="label">Action</p>
-            <div class="step-title">
-              <span class="monogram" aria-hidden="true">{{
-                monogram(view.summary.actionApp)
-              }}</span>
-              <h2 id="action-title">{{ view.summary.actionName }}</h2>
-            </div>
-            <dl class="properties">
-              @for (field of view.actionFields; track field.key) {
-                <dt>{{ field.label }}</dt>
-                <dd class="mono pre">{{ field.value }}</dd>
-              }
-            </dl>
-          </section>
-        </div>
-
-        <app-runs-panel
-          [zapId]="view.zap.id"
-          [repository]="view.summary.repository"
-          [enabled]="view.zap.enabled"
-        />
-      } @else if (!error()) {
-        <div class="steps" aria-busy="true" aria-label="Loading Zap">
-          <div class="panel step"><span class="skeleton block"></span></div>
-          <div class="panel step"><span class="skeleton block"></span></div>
-        </div>
-      }
-    </div>
-  `,
-  styles: `
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: var(--space-4);
-    }
-    .step {
-      display: grid;
-      align-content: start;
-      gap: var(--space-3);
-      padding: var(--space-4) var(--space-5) var(--space-5);
-    }
-    .step-title {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-    }
-    .pre {
-      white-space: pre-wrap;
-    }
-    .confirm {
-      align-self: center;
-      font-size: var(--text-xs);
-    }
-    .block {
-      display: block;
-      height: 120px;
-    }
-  `,
+  templateUrl: './zap-detail.page.html',
+  styleUrl: './zap-detail.page.css',
 })
 export class ZapDetailPage {
   private readonly api = inject(ZapsApi);
@@ -172,24 +40,40 @@ export class ZapDetailPage {
   readonly zapId = input.required<string>();
 
   private readonly zap = signal<ZapDto | null>(null);
+  private readonly resolution = signal<TestRunResult | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = signal(false);
+  protected readonly testing = signal(false);
+  protected readonly testResult = signal<TestRunResult | null>(null);
   protected readonly monogram = monogram;
 
   protected readonly view = computed(() => {
     const zap = this.zap();
     if (!zap || !this.registry.registry()) return null;
     const action = this.registry.action(zap.action.type);
-    return {
-      zap,
-      summary: summarize(zap, this.registry),
-      actionFields: (action?.configFields ?? []).map((field) => ({
+    const resolution = this.resolution();
+    const resolved = resolution?.trigger.matched ? resolution.resolvedConfig : null;
+    const definitions: ActionDefinitionRow[] = (action?.configFields ?? []).map((field) => {
+      const template = zap.action.config[field.key];
+      const value = resolved?.[field.key];
+      return {
         key: field.key,
         label: field.label,
-        value: String(zap.action.config[field.key] ?? ''),
-      })),
-    };
+        template: String(template ?? ''),
+        resolved: value === undefined ? null : String(value) || 'Empty',
+      };
+    });
+    return { zap, summary: summarize(zap, this.registry), definitions };
+  });
+
+  protected readonly resolvedNote = computed(() => {
+    const resolution = this.resolution();
+    if (!resolution?.trigger.matched) return null;
+    if (resolution.source === 'sample' || !resolution.receivedAt)
+      return 'Resolved with sample data';
+    const subject = resolution.subject?.label ?? 'the latest event';
+    return `Resolved with ${subject}, ${timeAgo(resolution.receivedAt)}`;
   });
 
   constructor() {
@@ -200,6 +84,26 @@ export class ZapDetailPage {
 
   protected ago(iso: string): string {
     return timeAgo(iso);
+  }
+
+  protected hookUrl(repository: string, hookId: number): string {
+    return `https://github.com/${repository}/settings/hooks/${String(hookId)}`;
+  }
+
+  protected entries(values: Record<string, unknown>): [string, string][] {
+    return Object.entries(values).map(([key, value]) => [key, String(value)]);
+  }
+
+  protected async runTest(zapId: string): Promise<void> {
+    this.testing.set(true);
+    this.error.set(null);
+    try {
+      this.testResult.set(await this.api.testRun(zapId));
+    } catch (error) {
+      this.error.set(toApiError(error).message);
+    } finally {
+      this.testing.set(false);
+    }
   }
 
   protected async toggle(zap: ZapDto): Promise<void> {
@@ -229,6 +133,7 @@ export class ZapDetailPage {
     try {
       const [zap] = await Promise.all([this.api.get(zapId), this.registry.load()]);
       this.zap.set(zap);
+      this.resolution.set(await this.api.testRun(zapId).catch(() => null));
     } catch (error) {
       this.error.set(toApiError(error).message);
     }

@@ -113,7 +113,8 @@ describe('github webhook delivery', () => {
     await deliver('pull_request', pullRequestPayload()).expect(202);
     await context.runner.idle();
     const delivery = await DeliveryModel.findOne().lean();
-    expect(delivery).toMatchObject({ status: 'failed' });
+    expect(delivery).toMatchObject({ status: 'retrying' });
+    expect(delivery?.nextAttemptAt).toBeInstanceOf(Date);
     expect(delivery?.attempts[0]).toMatchObject({ outcome: 'failed', retryable: true });
   });
 

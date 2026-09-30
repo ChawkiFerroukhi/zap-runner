@@ -23,7 +23,7 @@ const deliverySchema = new Schema(
     payload: { type: Schema.Types.Mixed, required: true },
     status: {
       type: String,
-      enum: ['queued', 'running', 'succeeded', 'failed', 'skipped'],
+      enum: ['queued', 'running', 'retrying', 'succeeded', 'failed', 'skipped'],
       required: true,
       default: 'queued',
     },
@@ -33,6 +33,9 @@ const deliverySchema = new Schema(
     missingFields: { type: [String], default: [] },
     result: { type: Schema.Types.Mixed, default: null },
     attempts: { type: [attemptSchema], default: [] },
+    nextAttemptAt: { type: Date, default: null },
+    lockedUntil: { type: Date, default: null },
+    replayOf: { type: Schema.Types.ObjectId, ref: 'Delivery', default: null },
     receivedAt: { type: Date, required: true },
     completedAt: { type: Date, default: null },
   },
@@ -41,5 +44,6 @@ const deliverySchema = new Schema(
 
 deliverySchema.index({ zapId: 1, githubDeliveryId: 1 }, { unique: true });
 deliverySchema.index({ userId: 1, receivedAt: -1 });
+deliverySchema.index({ status: 1, nextAttemptAt: 1 });
 
 export const DeliveryModel = model('Delivery', deliverySchema);

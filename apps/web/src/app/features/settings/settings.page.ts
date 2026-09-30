@@ -8,8 +8,8 @@ import { CopilotApi } from '../../core/copilot.api';
 
 const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
   gemini: 'Paste your Google AI Studio key',
-  openai: 'sk-…',
-  anthropic: 'sk-ant-…',
+  openai: 'Paste your OpenAI API key',
+  anthropic: 'Paste your Anthropic API key',
 };
 
 @Component({
@@ -17,49 +17,49 @@ const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
   imports: [ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="page">
-      <header class="page-header">
+    <div class="settings">
+      <div class="page-header">
         <h1>Settings</h1>
-      </header>
+      </div>
 
       @if (auth.user(); as user) {
-        <section class="panel card" aria-labelledby="account-heading">
+        <section class="card" aria-labelledby="account-heading">
           <p class="label" id="account-heading">Account</p>
           <div class="account">
-            <img [src]="user.avatarUrl" alt="" width="32" height="32" />
+            <img class="avatar large" [src]="user.avatarUrl" alt="" width="40" height="40" />
             <div>
               <p class="strong">{{ user.name ?? user.login }}</p>
-              <p class="muted">Signed in with GitHub as {{ user.login }}</p>
+              <p class="muted small">
+                Signed in with GitHub as <span class="mono login">{{ user.login }}</span>
+              </p>
             </div>
           </div>
         </section>
       }
 
-      <section class="panel card" aria-labelledby="copilot-heading">
-        <div class="card-header">
+      <section class="card copilot" aria-labelledby="copilot-heading">
+        <div class="card-head">
           <div>
             <p class="label" id="copilot-heading">Copilot</p>
-            <h2>Draft Zaps from a description</h2>
+            <h2 class="card-title">Draft Zaps from a description</h2>
           </div>
           @if (status(); as status) {
-            @if (status.configured) {
-              <span class="badge badge-success">Connected</span>
-            } @else {
-              <span class="badge">Not configured</span>
-            }
+            <span [class]="status.configured ? 'badge badge-success' : 'badge'">
+              {{ status.configured ? 'Connected' : 'Not connected' }}
+            </span>
           }
         </div>
 
         <p class="muted">
-          The Copilot sends your description and the list of available triggers and actions to the
-          provider you choose, then saves the result as a draft Zap for you to review before it can
-          run. Keys are checked with the provider, stored encrypted, and only their last four
-          characters are shown again.
+          Your description and the list of available triggers and actions are sent to the provider
+          you choose. The result is saved as a draft Zap for you to review before it can run. Keys
+          are verified with the provider, stored encrypted, and only shown again as their last four
+          characters.
         </p>
 
         @if (status(); as status) {
           @if (status.configured && status.provider; as provider) {
-            <dl class="properties">
+            <dl class="properties saved">
               <dt>Provider</dt>
               <dd>{{ provider.name }}</dd>
               <dt>Models</dt>
@@ -73,32 +73,45 @@ const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
                 }}
               </dd>
             </dl>
+          } @else {
+            <p class="saved muted">
+              No key saved. Choose a provider and paste a key to turn on the Copilot.
+            </p>
           }
 
           <form class="key-form" [formGroup]="form" (ngSubmit)="save()">
-            <fieldset class="providers">
-              <legend class="field-label">Provider</legend>
-              @for (provider of status.providers; track provider.id) {
-                <label class="provider" [class.selected]="selectedProvider() === provider.id">
-                  <input type="radio" formControlName="provider" [value]="provider.id" />
-                  <span class="provider-text">
-                    <span class="strong">{{ provider.name }}</span>
-                    <span class="muted small">
-                      {{
-                        provider.pricing === 'free-tier'
-                          ? 'Free tier, no card needed. Rate limited.'
-                          : 'Paid, billed by usage.'
-                      }}
+            <div class="field">
+              <span class="field-label" id="provider-label">Provider</span>
+              <div class="providers" role="radiogroup" aria-labelledby="provider-label">
+                @for (provider of status.providers; track provider.id) {
+                  <label class="provider" [class.selected]="selectedProvider() === provider.id">
+                    <input
+                      class="visually-hidden"
+                      type="radio"
+                      formControlName="provider"
+                      [value]="provider.id"
+                    />
+                    <span class="radio" aria-hidden="true"><span class="dot"></span></span>
+                    <span class="provider-text">
+                      <span class="strong">{{ provider.name }}</span>
+                      <span class="muted small">
+                        {{
+                          provider.pricing === 'free-tier'
+                            ? 'Free tier, no card needed. Rate limited.'
+                            : 'Paid, billed by usage.'
+                        }}
+                      </span>
                     </span>
-                  </span>
-                </label>
-              }
-            </fieldset>
+                  </label>
+                }
+              </div>
+            </div>
 
             @if (selected(); as provider) {
-              <label class="field">
-                <span class="field-label">{{ provider.name }} API key</span>
+              <div class="field">
+                <label class="field-label" for="api-key">{{ provider.name }} API key</label>
                 <input
+                  id="api-key"
                   class="input mono"
                   type="password"
                   autocomplete="off"
@@ -119,19 +132,23 @@ const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
                 @if (saved()) {
                   <span class="field-help" role="status">Key verified and saved.</span>
                 }
-              </label>
+              </div>
             }
 
             <div class="actions">
-              @if (status.source === 'account') {
-                <button type="button" class="btn btn-ghost" [disabled]="busy()" (click)="remove()">
-                  Remove key
-                </button>
-              }
+              <button
+                type="button"
+                class="btn-danger-text"
+                [disabled]="busy() || status.source !== 'account'"
+                (click)="remove()"
+              >
+                Remove key
+              </button>
+              <span class="divider-v" aria-hidden="true"></span>
               <button
                 type="submit"
-                class="btn btn-primary"
-                [disabled]="busy() || keyValue() === ''"
+                class="btn btn-primary save"
+                [disabled]="busy() || keyValue().trim() === ''"
               >
                 {{ busy() ? 'Verifying…' : 'Save key' }}
               </button>
@@ -144,77 +161,115 @@ const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
     </div>
   `,
   styles: `
-    .card {
-      display: grid;
-      gap: var(--space-4);
-      max-width: 640px;
-      padding: var(--space-5);
-    }
-    .card-header {
+    .settings {
       display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-3);
+      flex-direction: column;
+      gap: 24px;
+      max-width: 800px;
     }
     .account {
       display: flex;
       align-items: center;
-      gap: var(--space-3);
-    }
-    .account img {
-      border-radius: 50%;
+      gap: 12px;
     }
     .strong {
       font-weight: var(--weight-medium);
     }
-    .small {
-      font-size: var(--text-xs);
+    .login {
+      color: var(--color-text);
+    }
+    .copilot {
+      gap: 20px;
+    }
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .card-title {
+      margin-top: 4px;
+    }
+    .saved {
+      padding: 16px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+    }
+    dl.saved {
+      row-gap: 10px;
     }
     .key-form {
-      display: grid;
-      gap: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
     .providers {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: var(--space-2);
-      margin: 0;
-      padding: 0;
-      border: 0;
-    }
-    .providers legend {
-      margin-bottom: var(--space-2);
-      padding: 0;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
     }
     .provider {
       display: flex;
       align-items: flex-start;
-      gap: var(--space-2);
-      padding: var(--space-3);
+      gap: 12px;
+      padding: 14px 16px;
       border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
-      background: var(--color-surface-raised);
+      background: var(--color-bg);
       cursor: pointer;
+    }
+    .provider:hover {
+      border-color: var(--color-border-hover);
     }
     .provider.selected {
       border-color: var(--color-accent);
       background: var(--color-accent-soft);
     }
-    .provider input {
-      margin: 3px 0 0;
-      accent-color: var(--color-accent);
+    .radio {
+      display: flex;
+      flex: none;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      margin-top: 2px;
+      border: 1.5px solid var(--color-border-hover);
+      border-radius: 50%;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      opacity: 0;
+    }
+    .provider.selected .radio {
+      border-color: var(--color-accent);
+    }
+    .provider.selected .dot {
+      opacity: 1;
+    }
+    .provider input:focus-visible + .radio {
+      outline: 2px solid var(--color-focus);
+      outline-offset: 2px;
     }
     .provider-text {
-      display: grid;
+      display: flex;
+      flex-direction: column;
       gap: 2px;
     }
     .actions {
       display: flex;
+      align-items: center;
       justify-content: flex-end;
-      gap: var(--space-2);
+      gap: 8px;
+      padding-top: 4px;
+    }
+    .save {
+      padding: 0 16px;
     }
     .line {
-      display: block;
       width: 40%;
       height: 12px;
     }

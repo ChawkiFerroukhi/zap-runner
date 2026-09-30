@@ -54,6 +54,7 @@ export interface TestContext {
 }
 
 export interface TestOptions {
+  now?: () => Date;
   copilotModel?: CopilotModel;
   serverCopilotKey?: { provider: CopilotProviderId; apiKey: string };
 }
@@ -83,7 +84,17 @@ export function createTestContext(
   const events = overrides.events ?? createDeliveryEvents();
   const deliveries = createDeliveriesRepository(events);
   const runner =
-    overrides.runner ?? createDeliveryRunner({ registry, zaps, deliveries, githubFor, logger });
+    overrides.runner ??
+    createDeliveryRunner({
+      registry,
+      zaps,
+      deliveries,
+      githubFor,
+      logger,
+      scheduleTimers: false,
+      random: () => 1,
+      ...(options.now ? { now: options.now } : {}),
+    });
   const users = createUsersRepository();
   const zapService = createZapService({
     registry,

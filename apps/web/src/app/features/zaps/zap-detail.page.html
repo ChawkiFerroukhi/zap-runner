@@ -1,0 +1,178 @@
+<div class="page">
+  <div>
+    <a class="breadcrumb" routerLink="/zaps">Zaps</a>
+    @if (view(); as view) {
+      <div class="page-header">
+        <div class="title">
+          <h1 class="truncate">{{ view.zap.name }}</h1>
+          <app-zap-status [enabled]="view.zap.enabled" [draft]="view.zap.draft" />
+        </div>
+        <div class="actions">
+          @if (confirmingDelete()) {
+            <span class="muted small">Delete this Zap and its webhook?</span>
+            <button type="button" class="btn-text" (click)="confirmingDelete.set(false)">
+              Cancel
+            </button>
+            <button type="button" class="btn-danger-text" [disabled]="busy()" (click)="remove()">
+              Delete
+            </button>
+          } @else {
+            <button type="button" class="btn" [disabled]="testing()" (click)="runTest(view.zap.id)">
+              {{ testing() ? 'Testing…' : 'Test run' }}
+            </button>
+            @if (view.zap.draft) {
+              <a class="btn" [routerLink]="['/zaps', view.zap.id, 'edit']">Finish draft</a>
+            } @else {
+              <a class="btn" [routerLink]="['/zaps', view.zap.id, 'edit']">Edit</a>
+              <button type="button" class="btn" [disabled]="busy()" (click)="toggle(view.zap)">
+                {{ busy() ? 'Working…' : view.zap.enabled ? 'Turn off' : 'Turn on' }}
+              </button>
+            }
+            <span class="divider-v" aria-hidden="true"></span>
+            <button type="button" class="btn-danger-text" (click)="confirmingDelete.set(true)">
+              Delete
+            </button>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (error(); as message) {
+    <p class="notice notice-danger" role="alert">{{ message }}</p>
+  }
+
+  @if (view(); as view) {
+    <div class="cards">
+      <section class="card" aria-labelledby="trigger-title">
+        <p class="label">Trigger</p>
+        <div class="card-title">
+          <span class="monogram" aria-hidden="true">{{ monogram(view.summary.triggerApp) }}</span>
+          <h2 id="trigger-title">{{ view.summary.triggerName }}</h2>
+        </div>
+        <dl class="properties">
+          <dt>App</dt>
+          <dd>{{ view.summary.triggerApp }}</dd>
+          <dt>Repository</dt>
+          <dd class="mono">{{ view.summary.repository }}</dd>
+          <dt>Webhook</dt>
+          <dd class="webhook">
+            @if (view.zap.webhook; as webhook) {
+              @if (webhook.verifiedAt) {
+                <span class="badge badge-success">Verified</span>
+                <span class="muted small">
+                  GitHub confirmed it {{ ago(webhook.verifiedAt) }}.
+                  <a
+                    [href]="hookUrl(webhook.repository, webhook.hookId)"
+                    target="_blank"
+                    rel="noopener"
+                    >View on GitHub</a
+                  >
+                </span>
+              } @else {
+                <span class="badge badge-warning">Awaiting ping</span>
+                <span class="muted small">
+                  <a
+                    [href]="hookUrl(webhook.repository, webhook.hookId)"
+                    target="_blank"
+                    rel="noopener"
+                    >View on GitHub</a
+                  >
+                </span>
+              }
+            } @else {
+              <span class="muted small">Not registered. Turn the Zap on to create it.</span>
+            }
+          </dd>
+        </dl>
+      </section>
+
+      <section class="card" aria-labelledby="action-title">
+        <div class="card-top">
+          <p class="label">Action</p>
+          @if (resolvedNote(); as note) {
+            <span class="note">{{ note }}</span>
+          }
+        </div>
+        <div class="card-title">
+          <span class="monogram" aria-hidden="true">{{ monogram(view.summary.actionApp) }}</span>
+          <h2 id="action-title">{{ view.summary.actionName }}</h2>
+        </div>
+        <div class="definitions">
+          @for (definition of view.definitions; track definition.key) {
+            <div class="definition">
+              <div class="muted">{{ definition.label }}</div>
+              <div class="definition-value">
+                <app-token-text [text]="definition.template" />
+                @if (definition.resolved !== null) {
+                  <div class="resolved">
+                    <span class="subtle" aria-hidden="true">→</span>
+                    <span>{{ definition.resolved }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+
+    @if (testResult(); as result) {
+      <section class="card test" aria-labelledby="test-title">
+        <div class="card-top">
+          <div>
+            <p class="label">Test run</p>
+            <h2 id="test-title" class="test-title">
+              {{
+                result.source === 'latest-event'
+                  ? 'Against your latest matching event'
+                  : 'Against a sample event'
+              }}
+            </h2>
+          </div>
+          <button type="button" class="btn-text" (click)="testResult.set(null)">Close</button>
+        </div>
+        <p class="muted small">
+          Dry run: nothing was sent to GitHub.
+          @if (result.source === 'sample') {
+            The sample skips the trigger's filters, since no real event has arrived yet.
+          }
+        </p>
+        @if (result.trigger.matched) {
+          <dl class="properties wide">
+            @for (entry of entries(result.resolvedConfig); track entry[0]) {
+              <dt class="mono">{{ entry[0] }}</dt>
+              <dd>{{ entry[1] }}</dd>
+            }
+          </dl>
+          @if (result.missingFields.length > 0) {
+            <p class="notice notice-warning">
+              Missing fields render empty: {{ result.missingFields.join(', ') }}
+            </p>
+          }
+          @if (result.problem; as problem) {
+            <p class="notice notice-warning">{{ problem }}</p>
+          } @else {
+            <p class="ok small">The action would run with these settings.</p>
+          }
+        } @else {
+          <p class="notice notice-warning">
+            None of the recent events match this trigger. The latest one was skipped because:
+            {{ result.trigger.reason }}
+          </p>
+        }
+      </section>
+    }
+
+    <app-runs-panel
+      [zapId]="view.zap.id"
+      [repository]="view.summary.repository"
+      [enabled]="view.zap.enabled"
+    />
+  } @else if (!error()) {
+    <div class="cards" aria-busy="true" aria-label="Loading Zap">
+      <div class="card"><span class="skeleton block"></span></div>
+      <div class="card"><span class="skeleton block"></span></div>
+    </div>
+  }
+</div>

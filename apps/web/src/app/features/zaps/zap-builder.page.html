@@ -1,25 +1,40 @@
 <div class="page">
-  <a class="breadcrumb" routerLink="/zaps">Zaps</a>
-
-  <header class="page-header">
-    <h1>{{ editing() ? 'Edit Zap' : 'New Zap' }}</h1>
-    <div class="actions">
-      <a class="btn btn-ghost" [routerLink]="editing() ? ['/zaps', zapId()] : ['/zaps']">Cancel</a>
-      <button
-        type="submit"
-        form="zap-form"
-        class="btn btn-primary"
-        [disabled]="saving() || !loaded()"
-      >
-        {{ saving() ? 'Saving…' : 'Save' }}
-      </button>
+  <div>
+    <button type="button" class="breadcrumb" (click)="back()">Zaps</button>
+    <div class="page-header">
+      <h1>{{ editing() ? 'Edit Zap' : 'New Zap' }}</h1>
+      <div class="actions">
+        <button type="button" class="btn-text" (click)="back()">Cancel</button>
+        <button
+          type="button"
+          class="btn-text"
+          [disabled]="saving() || !loaded()"
+          (click)="save(true)"
+        >
+          Save as draft
+        </button>
+        <button
+          type="submit"
+          form="zap-form"
+          class="btn btn-primary save"
+          [disabled]="saving() || !loaded() || !canSave()"
+        >
+          {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
     </div>
-  </header>
+  </div>
 
-  @if (copilotExplanation(); as explanation) {
-    <div class="notice notice-accent" role="status">
-      <strong>Drafted by the Copilot.</strong> {{ explanation }} It is saved as a draft. Check each
-      setting, then click Save to finish it and turn it on from its page.
+  @if (copilotPrompt(); as prompt) {
+    <div class="banner">
+      <span class="label banner-label">Copilot draft</span>
+      <p class="banner-text">
+        Drafted from <span class="banner-prompt">“{{ prompt }}”</span>. Review every field before
+        saving. Drafts do not run until you turn them on.
+      </p>
+      <button type="button" class="banner-dismiss" (click)="copilotPrompt.set(null)">
+        Dismiss
+      </button>
     </div>
   }
 
@@ -30,27 +45,26 @@
   @if (loaded()) {
     <div class="layout">
       <form id="zap-form" class="steps" [formGroup]="form" (ngSubmit)="save(false)" novalidate>
-        <section class="panel step">
-          <label class="field">
-            <span class="field-label">Name</span>
-            <input
-              class="input"
-              formControlName="name"
-              placeholder="Thank pull request authors"
-              [attr.aria-invalid]="errorFor('name') ? true : null"
-            />
-            @if (errorFor('name'); as message) {
-              <span class="field-error">{{ message }}</span>
-            }
-          </label>
+        <section class="card name-card">
+          <label class="field-label" for="zap-name">Name</label>
+          <input
+            id="zap-name"
+            class="input"
+            formControlName="name"
+            placeholder="Thank pull request authors"
+            [attr.aria-invalid]="errorFor('name') ? true : null"
+          />
+          @if (errorFor('name'); as message) {
+            <span class="field-error">{{ message }}</span>
+          }
         </section>
 
-        <section class="panel step" aria-labelledby="trigger-heading">
-          <div class="step-heading">
+        <section class="card step" aria-labelledby="trigger-heading">
+          <div class="step-head">
             <span class="step-number">1</span>
             <div>
               <p class="label">Trigger</p>
-              <h2 id="trigger-heading">When this happens</h2>
+              <h2 id="trigger-heading" class="step-title">When this happens</h2>
             </div>
           </div>
 
@@ -62,37 +76,39 @@
           />
 
           @if (triggerOptions().length > 0) {
-            <label class="field">
-              <span class="field-label">Event</span>
-              <select class="select" formControlName="triggerType">
-                @for (option of triggerOptions(); track option.id) {
-                  <option [value]="option.id">{{ option.name }}</option>
-                }
-              </select>
+            <div class="field">
+              <label class="field-label" for="trigger-type">Event</label>
+              <div class="select-wrap">
+                <select id="trigger-type" class="select" formControlName="triggerType">
+                  @for (option of triggerOptions(); track option.id) {
+                    <option [value]="option.id">{{ option.name }}</option>
+                  }
+                </select>
+              </div>
               @if (trigger(); as trigger) {
                 <span class="field-help">{{ trigger.description }}</span>
               }
-            </label>
-
-            <div formGroupName="triggerConfig" class="fields">
-              @for (bound of triggerFields(); track bound.field.key) {
-                <app-config-field
-                  [bound]="bound"
-                  [error]="errorFor('trigger.config.' + bound.field.key)"
-                  [repositories]="repositoryChoices()"
-                  [repositoriesError]="repositoriesError()"
-                />
-              }
             </div>
+
+            @for (bound of triggerFields(); track bound.field.key) {
+              <app-config-field
+                [bound]="bound"
+                [error]="errorFor('trigger.config.' + bound.field.key)"
+                [repositories]="repositoryChoices()"
+                [repositoriesError]="repositoriesError()"
+              />
+            }
+          } @else {
+            <p class="subtle small">Choose an app to pick its event.</p>
           }
         </section>
 
-        <section class="panel step" aria-labelledby="action-heading">
-          <div class="step-heading">
+        <section class="card step" aria-labelledby="action-heading">
+          <div class="step-head">
             <span class="step-number">2</span>
             <div>
               <p class="label">Action</p>
-              <h2 id="action-heading">Do this</h2>
+              <h2 id="action-heading" class="step-title">Do this</h2>
             </div>
           </div>
 
@@ -104,79 +120,83 @@
           />
 
           @if (actionOptions().length > 0) {
-            <label class="field">
-              <span class="field-label">Action</span>
-              <select class="select" formControlName="actionType">
-                @for (option of actionOptions(); track option.id) {
-                  <option [value]="option.id">{{ option.name }}</option>
-                }
-              </select>
+            <div class="field">
+              <label class="field-label" for="action-type">Action</label>
+              <div class="select-wrap">
+                <select id="action-type" class="select" formControlName="actionType">
+                  @for (option of actionOptions(); track option.id) {
+                    <option [value]="option.id">{{ option.name }}</option>
+                  }
+                </select>
+              </div>
               @if (action(); as action) {
                 <span class="field-help">{{ action.description }}</span>
               }
-            </label>
-
-            <div formGroupName="actionConfig" class="fields">
-              @for (bound of actionFields(); track bound.field.key) {
-                <app-config-field
-                  [bound]="bound"
-                  [error]="errorFor('action.config.' + bound.field.key)"
-                  (focused)="rememberFocus($event)"
-                />
-              }
             </div>
+
+            @for (bound of actionFields(); track bound.field.key) {
+              <app-config-field
+                [bound]="bound"
+                [active]="focusedKey() === bound.field.key"
+                [error]="errorFor('action.config.' + bound.field.key)"
+                (focused)="rememberFocus($event)"
+              />
+            }
+          } @else {
+            <p class="subtle small">Choose an app to pick its action.</p>
           }
         </section>
       </form>
 
-      <aside class="aside">
-        <section class="panel aside-panel" aria-labelledby="fields-heading">
-          <div>
-            <p class="label" id="fields-heading">Available fields</p>
-            <p class="field-help">Click a field to insert it into the focused template.</p>
-          </div>
+      <aside class="rail">
+        <section class="card fields-card" aria-labelledby="fields-heading">
+          <p class="label" id="fields-heading">Available fields</p>
+          <p class="rail-text">
+            Click a field to insert it into the focused template. Inserting into
+            <span class="strong">{{ insertLabel() }}</span
+            >.
+          </p>
           @if (trigger(); as trigger) {
-            <ul class="chips">
+            <div class="chips">
               @for (output of trigger.outputFields; track output.key) {
-                <li>
-                  <button
-                    type="button"
-                    class="chip"
-                    [title]="output.label"
-                    (mousedown)="$event.preventDefault()"
-                    (click)="insertField(output.key)"
-                  >
-                    <span class="mono">{{ output.key }}</span>
-                    <span class="chip-sample truncate">{{ previewFields()[output.key] }}</span>
-                  </button>
-                </li>
+                <button
+                  type="button"
+                  class="chip"
+                  [title]="output.label"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertField(output.key)"
+                >
+                  <span class="chip-key">{{ output.key }}</span>
+                  <span class="chip-value truncate">{{ sampleValue(output.key) }}</span>
+                </button>
               }
-            </ul>
+            </div>
           } @else {
-            <p class="muted">Choose a trigger to see the fields it provides.</p>
+            <p class="subtle small">Choose a trigger to see the fields it provides.</p>
           }
         </section>
 
-        <section class="panel aside-panel" aria-labelledby="preview-heading" aria-live="polite">
+        <section class="card preview-card" aria-labelledby="preview-heading" aria-live="polite">
           <div>
             <p class="label" id="preview-heading">Preview</p>
-            <p class="field-help">{{ previewSource() }}</p>
+            <p class="rail-text">{{ previewSource() }}</p>
           </div>
           @for (item of preview(); track item.key) {
             <div class="preview-item">
-              <span class="field-label">{{ item.label }}</span>
-              <pre class="preview-output">{{ item.output || ' ' }}</pre>
+              <span class="preview-label">{{ item.label }}</span>
+              <div
+                class="preview-value"
+                [class.empty]="item.output === ''"
+                [textContent]="item.output || 'Empty'"
+              ></div>
               @if (item.missing.length > 0) {
-                <p class="notice notice-warning">
-                  Not provided by this trigger:
-                  @for (key of item.missing; track key) {
-                    <span class="mono">{{ '{{' + key + '}}' }}</span>
-                  }
-                </p>
+                <span class="field-help warning"
+                  >Not provided by this trigger: {{ item.missing.join(', ') }}</span
+                >
               }
             </div>
           } @empty {
-            <p class="muted">Choose an action to preview what it will send.</p>
+            <p class="subtle small">Choose an action to preview what it will send.</p>
           }
         </section>
       </aside>
@@ -184,10 +204,10 @@
   } @else if (!error()) {
     <div class="layout" aria-busy="true" aria-label="Loading builder">
       <div class="steps">
-        <div class="panel step"><span class="skeleton block"></span></div>
-        <div class="panel step"><span class="skeleton block tall"></span></div>
+        <div class="card"><span class="skeleton block"></span></div>
+        <div class="card"><span class="skeleton block tall"></span></div>
       </div>
-      <div class="panel aside-panel"><span class="skeleton block tall"></span></div>
+      <div class="card"><span class="skeleton block tall"></span></div>
     </div>
   }
 </div>

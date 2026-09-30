@@ -1,8 +1,11 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import type {
-  DeliveryDto,
   RepositoryOption,
+  RunFilter,
+  RunPage,
+  RunRange,
+  TestRunResult,
   TriggerSample,
   ZapDto,
   ZapInput,
@@ -38,8 +41,47 @@ export class ZapsApi {
     await firstValueFrom(this.http.delete(`/api/zaps/${zapId}`));
   }
 
-  deliveries(zapId: string): Promise<DeliveryDto[]> {
-    return firstValueFrom(this.http.get<DeliveryDto[]>(`/api/zaps/${zapId}/deliveries`));
+  runs(
+    zapId: string,
+    query: { filter: RunFilter; range: RunRange; cursor?: string | null; limit?: number },
+  ): Promise<RunPage> {
+    let params = new HttpParams().set('filter', query.filter).set('range', query.range);
+    if (query.cursor) params = params.set('cursor', query.cursor);
+    if (query.limit) params = params.set('limit', String(query.limit));
+    return firstValueFrom(this.http.get<RunPage>(`/api/zaps/${zapId}/deliveries`, { params }));
+  }
+
+  allRuns(query: {
+    filter: RunFilter;
+    range: RunRange;
+    zapId?: string | null;
+    cursor?: string | null;
+    limit?: number;
+  }): Promise<RunPage> {
+    let params = new HttpParams().set('filter', query.filter).set('range', query.range);
+    if (query.zapId) params = params.set('zapId', query.zapId);
+    if (query.cursor) params = params.set('cursor', query.cursor);
+    if (query.limit) params = params.set('limit', String(query.limit));
+    return firstValueFrom(this.http.get<RunPage>('/api/runs', { params }));
+  }
+
+  payload(zapId: string, deliveryId: string): Promise<{ payload: unknown }> {
+    return firstValueFrom(
+      this.http.get<{ payload: unknown }>(`/api/zaps/${zapId}/deliveries/${deliveryId}/payload`),
+    );
+  }
+
+  replay(zapId: string, deliveryId: string): Promise<{ deliveryId: string }> {
+    return firstValueFrom(
+      this.http.post<{ deliveryId: string }>(
+        `/api/zaps/${zapId}/deliveries/${deliveryId}/replay`,
+        null,
+      ),
+    );
+  }
+
+  testRun(zapId: string): Promise<TestRunResult> {
+    return firstValueFrom(this.http.post<TestRunResult>(`/api/zaps/${zapId}/test`, null));
   }
 
   triggerSample(triggerId: string): Promise<TriggerSample> {

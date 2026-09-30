@@ -1,26 +1,78 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   effect,
   inject,
   input,
   signal,
+  untracked,
 } from '@angular/core';
-import type { DeliveryDto } from '@zap-runner/shared';
+import type {
+  DeliveryAttempt,
+  DeliveryDto,
+  RunCounts,
+  RunFilter,
+  RunPage,
+  RunRange,
+} from '@zap-runner/shared';
 import { toApiError } from '../../core/api-error';
 import { DeliveryStream } from '../../core/delivery-stream';
+import { highlightJson, type JsonSegment } from '../../core/json-highlight';
 import { timeAgo } from '../../core/time';
 import { ZapsApi } from '../../core/zaps.api';
 import { DeliveryStatusBadge } from '../../ui/status-badge';
 
 const CLOCK_TICK_MS = 30_000;
+const COUNTS_DEBOUNCE_MS = 400;
 
-function durationOf(delivery: DeliveryDto): string | null {
-  const attempt = delivery.attempts.at(-1);
-  if (!attempt) return null;
-  const ms = new Date(attempt.finishedAt).getTime() - new Date(attempt.startedAt).getTime();
-  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+const FILTERS: { id: RunFilter; label: string }[] = [
+  { id: 'runs', label: 'All runs' },
+  { id: 'succeeded', label: 'Succeeded' },
+  { id: 'failed', label: 'Failed' },
+  { id: 'retrying', label: 'Retrying' },
+  { id: 'skipped', label: 'Skipped events' },
+];
+
+const RANGES: { id: RunRange; label: string; ms: number | null }[] = [
+  { id: '24h', label: '24h', ms: 86_400_000 },
+  { id: '7d', label: '7 days', ms: 7 * 86_400_000 },
+  { id: '30d', label: '30 days', ms: 30 * 86_400_000 },
+  { id: 'all', label: 'All time', ms: null },
+];
+
+const EMPTY_COUNTS: RunCounts = { runs: 0, succeeded: 0, failed: 0, retrying: 0, skipped: 0 };
+
+export interface ZapOption {
+  id: string;
+  name: string;
+}
+
+interface AttemptRow {
+  number: string;
+  outcome: string;
+  succeeded: boolean;
+  duration: string;
+  error: string;
+  next: string;
+}
+
+function matchesFilter(delivery: DeliveryDto, filter: RunFilter): boolean {
+  return filter === 'runs' ? delivery.status !== 'skipped' : delivery.status === filter;
+}
+
+function durationOf(startedAt: string, finishedAt: string): string {
+  const ms = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
+  return ms < 1000 ? `${String(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
+function secondsBetween(from: string, to: string): string {
+  const seconds = Math.max(
+    0,
+    Math.round((new Date(to).getTime() - new Date(from).getTime()) / 1000),
+  );
+  return seconds < 60 ? `${String(seconds)} s` : `${String(Math.round(seconds / 60))} min`;
 }
 
 function resultUrl(delivery: DeliveryDto): string | null {
@@ -32,223 +84,83 @@ function resultUrl(delivery: DeliveryDto): string | null {
   selector: 'app-runs-panel',
   imports: [DeliveryStatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <section class="section" aria-labelledby="runs-title">
-      <div class="section-header">
-        <h2 id="runs-title">Runs</h2>
-        @switch (connection()) {
-          @case ('live') {
-            <span class="badge badge-success" aria-live="polite">Live</span>
-          }
-          @case ('reconnecting') {
-            <span class="badge badge-warning" aria-live="polite">Reconnecting</span>
-          }
-          @default {
-            <span class="badge" aria-live="polite">Connecting</span>
-          }
-        }
-      </div>
-
-      @if (error(); as message) {
-        <p class="notice notice-danger" role="alert">{{ message }}</p>
-      }
-
-      @if (deliveries(); as deliveries) {
-        @if (deliveries.length === 0) {
-          <div class="panel empty-state">
-            <h2>No runs yet</h2>
-            <p class="muted">
-              @if (enabled()) {
-                Open a pull request on <span class="mono">{{ repository() }}</span> and the run will
-                appear here within a few seconds.
-              } @else {
-                Turn the Zap on to register its webhook, then open a pull request on
-                <span class="mono">{{ repository() }}</span
-                >.
-              }
-            </p>
-          </div>
-        } @else {
-          <div class="panel list">
-            @for (delivery of deliveries; track delivery.id) {
-              <div class="run">
-                <button
-                  type="button"
-                  class="list-row run-row"
-                  [attr.aria-expanded]="expanded() === delivery.id"
-                  (click)="toggle(delivery.id)"
-                >
-                  <app-delivery-status [status]="delivery.status" />
-                  <span class="mono muted"
-                    >{{ delivery.event
-                    }}{{ delivery.eventAction ? '.' + delivery.eventAction : '' }}</span
-                  >
-                  <span class="truncate">{{ delivery.statusReason ?? 'Waiting to run' }}</span>
-                  <span class="muted when">{{ ago(delivery.receivedAt) }}</span>
-                </button>
-
-                @if (expanded() === delivery.id) {
-                  <div class="details">
-                    <dl class="properties">
-                      <dt>Delivery</dt>
-                      <dd class="mono">{{ delivery.githubDeliveryId }}</dd>
-                      <dt>Received</dt>
-                      <dd>{{ delivery.receivedAt }}</dd>
-                      @if (duration(delivery); as duration) {
-                        <dt>Action took</dt>
-                        <dd>{{ duration }}</dd>
-                      }
-                      <dt>Attempts</dt>
-                      <dd>{{ delivery.attempts.length }}</dd>
-                      @if (resultUrl(delivery); as url) {
-                        <dt>Result</dt>
-                        <dd>
-                          <a [href]="url" target="_blank" rel="noopener">{{ url }}</a>
-                        </dd>
-                      }
-                      @if (delivery.missingFields.length > 0) {
-                        <dt>Missing fields</dt>
-                        <dd class="mono warning">{{ delivery.missingFields.join(', ') }}</dd>
-                      }
-                    </dl>
-
-                    @if (delivery.resolvedConfig; as config) {
-                      <div class="block">
-                        <p class="label">Resolved action settings</p>
-                        <dl class="properties">
-                          @for (entry of entries(config); track entry[0]) {
-                            <dt class="mono">{{ entry[0] }}</dt>
-                            <dd class="pre">{{ entry[1] }}</dd>
-                          }
-                        </dl>
-                      </div>
-                    }
-
-                    @if (delivery.fields; as fields) {
-                      <div class="block">
-                        <p class="label">Trigger fields</p>
-                        <dl class="properties">
-                          @for (entry of entries(fields); track entry[0]) {
-                            <dt class="mono">{{ entry[0] }}</dt>
-                            <dd>{{ entry[1] }}</dd>
-                          }
-                        </dl>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            }
-          </div>
-        }
-      } @else if (!error()) {
-        <div class="panel list" aria-busy="true" aria-label="Loading runs">
-          @for (placeholder of [1, 2]; track placeholder) {
-            <div class="list-row run-row">
-              <span class="skeleton bar"></span>
-              <span class="skeleton bar"></span>
-              <span class="skeleton bar"></span>
-              <span class="skeleton bar"></span>
-            </div>
-          }
-        </div>
-      }
-    </section>
-  `,
-  styles: `
-    .run + .run {
-      border-top: 1px solid var(--color-border);
-    }
-    .run-row {
-      grid-template-columns: 96px minmax(140px, 180px) 1fr 104px;
-      width: 100%;
-      border: 0;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      text-align: left;
-      cursor: pointer;
-    }
-    button.run-row:hover {
-      background: var(--color-surface-raised);
-    }
-    .when {
-      text-align: right;
-    }
-    .details {
-      display: grid;
-      gap: var(--space-4);
-      padding: var(--space-4) var(--space-4) var(--space-5);
-      border-top: 1px solid var(--color-border);
-      background: var(--color-surface-raised);
-    }
-    .block {
-      display: grid;
-      gap: var(--space-2);
-    }
-    .pre {
-      white-space: pre-wrap;
-    }
-    .warning {
-      color: var(--color-warning-fg);
-    }
-    .bar {
-      height: 12px;
-    }
-  `,
+  templateUrl: './runs-panel.html',
+  styleUrl: './runs-panel.css',
 })
 export class RunsPanel {
   private readonly api = inject(ZapsApi);
   private readonly stream = inject(DeliveryStream);
 
-  readonly zapId = input.required<string>();
-  readonly repository = input.required<string>();
-  readonly enabled = input.required<boolean>();
+  readonly zapId = input<string | null>(null);
+  readonly repository = input('');
+  readonly enabled = input(false);
+  readonly zaps = input<ZapOption[]>([]);
 
-  protected readonly deliveries = signal<DeliveryDto[] | null>(null);
+  protected readonly filters = FILTERS;
+  protected readonly ranges = RANGES;
+  protected readonly filter = signal<RunFilter>('runs');
+  protected readonly range = signal<RunRange>('7d');
+  protected readonly zapFilter = signal<string | null>(null);
+  protected readonly items = signal<DeliveryDto[] | null>(null);
+  protected readonly counts = signal<RunCounts>(EMPTY_COUNTS);
+  protected readonly nextCursor = signal<string | null>(null);
+  protected readonly loadingMore = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly expanded = signal<string | null>(null);
   protected readonly now = signal(Date.now());
   protected readonly connection = signal<'connecting' | 'live' | 'reconnecting'>('connecting');
+  protected readonly replaying = signal<string | null>(null);
+  protected readonly payloads = signal<Record<string, { text: string; lines: JsonSegment[][] }>>(
+    {},
+  );
+  protected readonly payloadOpen = signal<Record<string, boolean>>({});
+  protected readonly copied = signal<string | null>(null);
 
-  protected readonly duration = durationOf;
+  protected readonly global = computed(() => this.zapId() === null);
+  protected readonly zapNames = computed(
+    () => new Map(this.zaps().map((zap) => [zap.id, zap.name])),
+  );
   protected readonly resultUrl = resultUrl;
 
+  private countsTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor() {
+    effect(() => {
+      const zapId = this.zapId();
+      const filter = this.filter();
+      const range = this.range();
+      const zapFilter = this.zapFilter();
+      untracked(() => {
+        void this.reload(zapId, filter, range, zapFilter);
+      });
+    });
+
     effect((onCleanup) => {
       const zapId = this.zapId();
       let dropped = false;
       const subscription = this.stream.watch(zapId).subscribe((event) => {
         if (event.kind === 'open') {
           this.connection.set('live');
-          if (dropped || this.deliveries() === null) void this.refresh(zapId);
+          if (dropped) void this.reload(zapId, this.filter(), this.range(), this.zapFilter());
           dropped = false;
         } else if (event.kind === 'reconnecting') {
           this.connection.set('reconnecting');
           dropped = true;
         } else {
-          this.upsert(event.delivery);
+          this.merge(event.delivery);
         }
       });
       onCleanup(() => {
         subscription.unsubscribe();
       });
     });
+
     const clock = setInterval(() => {
       this.now.set(Date.now());
     }, CLOCK_TICK_MS);
     inject(DestroyRef).onDestroy(() => {
       clearInterval(clock);
-    });
-  }
-
-  private upsert(delivery: DeliveryDto): void {
-    this.now.set(Date.now());
-    this.deliveries.update((current) => {
-      const list = current ?? [];
-      const index = list.findIndex((item) => item.id === delivery.id);
-      if (index === -1) return [delivery, ...list];
-      return list.map((item) => (item.id === delivery.id ? delivery : item));
+      if (this.countsTimer) clearTimeout(this.countsTimer);
     });
   }
 
@@ -260,17 +172,176 @@ export class RunsPanel {
     return Object.entries(values).map(([key, value]) => [key, String(value)]);
   }
 
+  protected countFor(filter: RunFilter): number {
+    return this.counts()[filter];
+  }
+
+  protected zapNameOf(delivery: DeliveryDto): string {
+    return this.zapNames().get(delivery.zapId) ?? 'Deleted Zap';
+  }
+
+  protected setZapFilter(event: Event): void {
+    if (event.target instanceof HTMLSelectElement) {
+      this.expanded.set(null);
+      this.zapFilter.set(event.target.value === '' ? null : event.target.value);
+    }
+  }
+
   protected toggle(deliveryId: string): void {
     this.expanded.update((current) => (current === deliveryId ? null : deliveryId));
   }
 
-  private async refresh(zapId: string): Promise<void> {
+  protected attemptsOf(delivery: DeliveryDto): AttemptRow[] {
+    const attempts: DeliveryAttempt[] = delivery.attempts;
+    return attempts.map((attempt, index) => {
+      const next = attempts[index + 1];
+      const last = index === attempts.length - 1;
+      let note: string;
+      if (attempt.outcome === 'succeeded')
+        note = last ? (delivery.statusReason ?? 'Succeeded') : '';
+      else if (next) note = `Retried after ${secondsBetween(attempt.finishedAt, next.startedAt)}`;
+      else if (delivery.status === 'retrying' && delivery.nextAttemptAt) {
+        note = `Next retry ${timeAgo(delivery.nextAttemptAt, this.now())}`;
+      } else note = attempt.retryable ? 'No retries left' : 'Not retried: error is not retryable';
+      return {
+        number: `#${String(attempt.number)}`,
+        outcome: attempt.outcome,
+        succeeded: attempt.outcome === 'succeeded',
+        duration: durationOf(attempt.startedAt, attempt.finishedAt),
+        error: attempt.error ?? '',
+        next: note,
+      };
+    });
+  }
+
+  protected async loadOlder(): Promise<void> {
+    const cursor = this.nextCursor();
+    if (!cursor) return;
+    this.loadingMore.set(true);
     try {
-      this.deliveries.set(await this.api.deliveries(zapId));
+      const page = await this.fetch(
+        this.zapId(),
+        this.filter(),
+        this.range(),
+        this.zapFilter(),
+        cursor,
+      );
+      this.items.update((current) => [...(current ?? []), ...page.items]);
+      this.nextCursor.set(page.nextCursor);
+    } catch (error) {
+      this.error.set(toApiError(error).message);
+    } finally {
+      this.loadingMore.set(false);
+    }
+  }
+
+  protected async togglePayload(delivery: DeliveryDto): Promise<void> {
+    const open = !this.payloadOpen()[delivery.id];
+    this.payloadOpen.update((current) => ({ ...current, [delivery.id]: open }));
+    if (!open || this.payloads()[delivery.id]) return;
+    try {
+      const { payload } = await this.api.payload(delivery.zapId, delivery.id);
+      const text = JSON.stringify(payload, null, 2);
+      this.payloads.update((current) => ({
+        ...current,
+        [delivery.id]: { text, lines: highlightJson(text) },
+      }));
+    } catch (error) {
+      this.error.set(toApiError(error).message);
+    }
+  }
+
+  protected async copyPayload(deliveryId: string): Promise<void> {
+    const payload = this.payloads()[deliveryId];
+    if (!payload) return;
+    await navigator.clipboard.writeText(payload.text);
+    this.copied.set(deliveryId);
+    setTimeout(() => {
+      this.copied.set(null);
+    }, 1500);
+  }
+
+  protected async replay(delivery: DeliveryDto): Promise<void> {
+    this.replaying.set(delivery.id);
+    this.error.set(null);
+    try {
+      const { deliveryId } = await this.api.replay(delivery.zapId, delivery.id);
+      this.expanded.set(deliveryId);
+    } catch (error) {
+      this.error.set(toApiError(error).message);
+    } finally {
+      this.replaying.set(null);
+    }
+  }
+
+  private fetch(
+    zapId: string | null,
+    filter: RunFilter,
+    range: RunRange,
+    zapFilter: string | null,
+    cursor: string | null = null,
+    limit?: number,
+  ): Promise<RunPage> {
+    const extra = limit === undefined ? {} : { limit };
+    return zapId
+      ? this.api.runs(zapId, { filter, range, cursor, ...extra })
+      : this.api.allRuns({ filter, range, zapId: zapFilter, cursor, ...extra });
+  }
+
+  private async reload(
+    zapId: string | null,
+    filter: RunFilter,
+    range: RunRange,
+    zapFilter: string | null,
+  ): Promise<void> {
+    try {
+      const page = await this.fetch(zapId, filter, range, zapFilter);
+      const stale =
+        zapId !== this.zapId() ||
+        filter !== this.filter() ||
+        range !== this.range() ||
+        zapFilter !== this.zapFilter();
+      if (stale) return;
+      this.items.set(page.items);
+      this.counts.set(page.counts);
+      this.nextCursor.set(page.nextCursor);
       this.now.set(Date.now());
       this.error.set(null);
     } catch (error) {
       this.error.set(toApiError(error).message);
     }
+  }
+
+  private merge(delivery: DeliveryDto): void {
+    this.now.set(Date.now());
+    const zapFilter = this.zapFilter();
+    const inScope = zapFilter === null || delivery.zapId === zapFilter;
+    const matches =
+      inScope && this.withinRange(delivery.receivedAt) && matchesFilter(delivery, this.filter());
+    this.items.update((current) => {
+      const list = current ?? [];
+      const index = list.findIndex((item) => item.id === delivery.id);
+      if (!matches) return index === -1 ? list : list.filter((item) => item.id !== delivery.id);
+      if (index === -1) return [delivery, ...list];
+      return list.map((item) => (item.id === delivery.id ? delivery : item));
+    });
+    this.refreshCountsSoon();
+  }
+
+  private withinRange(receivedAt: string): boolean {
+    const ms = RANGES.find((range) => range.id === this.range())?.ms ?? null;
+    return ms === null || Date.now() - new Date(receivedAt).getTime() <= ms;
+  }
+
+  private refreshCountsSoon(): void {
+    if (this.countsTimer) clearTimeout(this.countsTimer);
+    this.countsTimer = setTimeout(() => {
+      this.countsTimer = null;
+      void this.fetch(this.zapId(), this.filter(), this.range(), this.zapFilter(), null, 1)
+        .then((page) => {
+          this.counts.set(page.counts);
+        })
+        .catch(() => undefined);
+    }, COUNTS_DEBOUNCE_MS);
   }
 }

@@ -79,7 +79,14 @@ export interface ActionRun {
   result: ActionResult;
 }
 
+export interface ActionPreview {
+  resolvedConfig: ConfigValues;
+  missingFields: string[];
+  problem: string | null;
+}
+
 export interface Action {
   descriptor: ActionDescriptor;
+  preview(config: ConfigValues, fields: FieldMap): ActionPreview;
   run(config: ConfigValues, fields: FieldMap, context: ActionContext): Promise<ActionRun>;
 }

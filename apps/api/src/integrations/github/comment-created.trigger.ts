@@ -34,8 +34,7 @@ export const commentCreated = defineTrigger({
   id: 'github.issue_comment.created',
   appId: 'github',
   name: 'Comment created',
-  description:
-    'Runs when someone comments on an issue or pull request. Comments posted by Zaps are ignored.',
+  description: 'Runs when someone comments on a pull request or issue.',
   webhookEvent: 'issue_comment',
   configFields: [
     { key: 'repository', label: 'Repository', kind: 'repository', required: true },

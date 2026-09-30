@@ -79,6 +79,7 @@ const app = createApp({
 
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT }, 'api listening');
+  runner.start();
 });
 
 function closeServer(target: Server): Promise<void> {
@@ -104,7 +105,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 
   events.close();
   await closeServer(server);
-  await runner.idle();
+  await runner.stop();
   await disconnectDatabase();
   logger.info('shutdown complete');
   process.exit(0);

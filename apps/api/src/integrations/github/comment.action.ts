@@ -13,13 +13,14 @@ export const comment = defineAction({
   id: 'github.comment',
   appId: 'github',
   name: 'Comment on pull request or issue',
-  description: 'Posts a comment on a pull request or issue.',
+  description: 'Posts a comment on a pull request or issue as your GitHub account.',
   configFields: [
     {
       key: 'body',
       label: 'Comment',
       kind: 'multiline-template',
       required: true,
+      help: 'Posted as your GitHub account. Tokens are replaced with trigger fields when the Zap runs.',
       default: 'Thanks for the update. A maintainer will take a look shortly.',
     },
     {

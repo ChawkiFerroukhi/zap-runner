@@ -6,6 +6,7 @@ type Tone = 'success' | 'danger' | 'warning' | 'accent' | 'neutral';
 const DELIVERY_TONES: Record<DeliveryStatus, Tone> = {
   queued: 'accent',
   running: 'accent',
+  retrying: 'warning',
   succeeded: 'success',
   failed: 'danger',
   skipped: 'neutral',
@@ -14,6 +15,7 @@ const DELIVERY_TONES: Record<DeliveryStatus, Tone> = {
 const DELIVERY_LABELS: Record<DeliveryStatus, string> = {
   queued: 'Queued',
   running: 'Running',
+  retrying: 'Retrying',
   succeeded: 'Succeeded',
   failed: 'Failed',
   skipped: 'Skipped',

@@ -1,0 +1,266 @@
+<section class="runs" aria-labelledby="runs-title">
+  <div class="runs-head" [class.page-head]="global()">
+    @if (global()) {
+      <h1 id="runs-title">Runs</h1>
+    } @else {
+      <h2 id="runs-title">Runs</h2>
+    }
+    <span
+      class="live"
+      [class.reconnecting]="connection() === 'reconnecting'"
+      [class.connecting]="connection() === 'connecting'"
+      aria-live="polite"
+    >
+      {{
+        connection() === 'live'
+          ? 'Live'
+          : connection() === 'reconnecting'
+            ? 'Reconnecting'
+            : 'Connecting'
+      }}
+    </span>
+  </div>
+
+  <div class="toolbar">
+    <div class="chips" role="group" aria-label="Filter by status">
+      @for (option of filters; track option.id) {
+        <button
+          type="button"
+          class="chip"
+          [class.selected]="filter() === option.id"
+          [attr.aria-pressed]="filter() === option.id"
+          (click)="filter.set(option.id)"
+        >
+          {{ option.label }}
+          <span class="count">{{ countFor(option.id) }}</span>
+        </button>
+      }
+    </div>
+    <div class="tools">
+      @if (global()) {
+        <div class="select-wrap compact">
+          <select
+            class="select"
+            aria-label="Filter by Zap"
+            [value]="zapFilter() ?? ''"
+            (change)="setZapFilter($event)"
+          >
+            <option value="">All Zaps</option>
+            @for (zap of zaps(); track zap.id) {
+              <option [value]="zap.id">{{ zap.name }}</option>
+            }
+          </select>
+        </div>
+      }
+      <div class="ranges" role="radiogroup" aria-label="Time range">
+        @for (option of ranges; track option.id) {
+          <button
+            type="button"
+            role="radio"
+            class="range"
+            [class.selected]="range() === option.id"
+            [attr.aria-checked]="range() === option.id"
+            (click)="range.set(option.id)"
+          >
+            {{ option.label }}
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+
+  @if (error(); as message) {
+    <p class="notice notice-danger" role="alert">{{ message }}</p>
+  }
+
+  <div class="panel list" [class.global]="global()">
+    @if (items(); as items) {
+      @if (items.length === 0) {
+        <p class="empty">No runs in this period.</p>
+      }
+      @for (delivery of items; track delivery.id) {
+        <div class="run" [class.open]="expanded() === delivery.id">
+          <div
+            class="row"
+            role="button"
+            tabindex="0"
+            [attr.aria-expanded]="expanded() === delivery.id"
+            (click)="toggle(delivery.id)"
+            (keydown.enter)="toggle(delivery.id)"
+            (keydown.space)="$event.preventDefault(); toggle(delivery.id)"
+          >
+            <div><app-delivery-status [status]="delivery.status" /></div>
+            @if (global()) {
+              <div class="zap-name truncate">{{ zapNameOf(delivery) }}</div>
+            }
+            <div class="event truncate">
+              {{ delivery.event }}{{ delivery.eventAction ? '.' + delivery.eventAction : '' }}
+            </div>
+            <div class="ref">{{ delivery.subject?.label ?? '' }}</div>
+            <div class="summary truncate">{{ delivery.statusReason ?? 'Waiting to run' }}</div>
+            <div class="when">{{ ago(delivery.receivedAt) }}</div>
+            <span class="expand" aria-hidden="true"></span>
+          </div>
+
+          @if (expanded() === delivery.id) {
+            <div class="details">
+              <div class="links">
+                @if (delivery.status === 'failed' || delivery.status === 'skipped') {
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    [disabled]="replaying() === delivery.id"
+                    (click)="replay(delivery)"
+                  >
+                    {{ replaying() === delivery.id ? 'Replaying…' : 'Replay' }}
+                  </button>
+                }
+                @if (delivery.subject; as subject) {
+                  <a [href]="subject.url" target="_blank" rel="noopener"
+                    >Open {{ subject.label }} on GitHub ↗</a
+                  >
+                }
+                @if (resultUrl(delivery); as url) {
+                  <a [href]="url" target="_blank" rel="noopener">Open the posted comment ↗</a>
+                }
+              </div>
+
+              <dl class="properties wide">
+                <dt>Delivery</dt>
+                <dd class="mono">{{ delivery.githubDeliveryId }}</dd>
+                <dt>Received</dt>
+                <dd class="mono">{{ delivery.receivedAt }}</dd>
+                @if (delivery.replayOf) {
+                  <dt>Replay of</dt>
+                  <dd class="mono">{{ delivery.replayOf }}</dd>
+                }
+                @if (delivery.missingFields.length > 0) {
+                  <dt>Missing fields</dt>
+                  <dd class="mono warning">{{ delivery.missingFields.join(', ') }}</dd>
+                }
+              </dl>
+
+              <div class="block">
+                <p class="label">Attempts</p>
+                @if (delivery.attempts.length > 0) {
+                  <div class="attempts">
+                    <div class="attempt attempt-head">
+                      <div>#</div>
+                      <div>Outcome</div>
+                      <div>Duration</div>
+                      <div>Detail</div>
+                    </div>
+                    @for (attempt of attemptsOf(delivery); track attempt.number) {
+                      <div class="attempt">
+                        <div class="mono muted">{{ attempt.number }}</div>
+                        <div class="outcome" [class.ok]="attempt.succeeded">
+                          {{ attempt.outcome }}
+                        </div>
+                        <div class="mono muted">{{ attempt.duration }}</div>
+                        <div class="attempt-detail">
+                          @if (attempt.error) {
+                            <span class="attempt-error">{{ attempt.error }}</span>
+                          }
+                          <span class="subtle">{{ attempt.next }}</span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <p class="muted small">{{ delivery.statusReason ?? 'No attempts yet.' }}</p>
+                }
+              </div>
+
+              <div class="block">
+                <p class="label">Resolved action settings</p>
+                @if (delivery.resolvedConfig; as config) {
+                  <dl class="properties wide">
+                    @for (entry of entries(config); track entry[0]) {
+                      <dt class="mono">{{ entry[0] }}</dt>
+                      <dd>{{ entry[1] }}</dd>
+                    }
+                  </dl>
+                } @else {
+                  <p class="muted small">
+                    Nothing was sent. The event was skipped before the action ran.
+                  </p>
+                }
+              </div>
+
+              @if (delivery.fields; as fields) {
+                <div class="block">
+                  <p class="label">Trigger fields</p>
+                  <dl class="properties wide">
+                    @for (entry of entries(fields); track entry[0]) {
+                      <dt class="mono">{{ entry[0] }}</dt>
+                      <dd [class.subtle]="entry[1] === ''">
+                        {{ entry[1] === '' ? 'empty' : entry[1] }}
+                      </dd>
+                    }
+                  </dl>
+                </div>
+              }
+
+              <div class="block">
+                <div class="payload-head">
+                  <button
+                    type="button"
+                    class="payload-toggle"
+                    [class.open]="payloadOpen()[delivery.id]"
+                    [attr.aria-expanded]="payloadOpen()[delivery.id] ?? false"
+                    (click)="togglePayload(delivery)"
+                  >
+                    <span class="payload-chevron" aria-hidden="true"></span>
+                    Raw GitHub payload
+                  </button>
+                  @if (payloadOpen()[delivery.id] && payloads()[delivery.id]) {
+                    <button type="button" class="copy" (click)="copyPayload(delivery.id)">
+                      {{ copied() === delivery.id ? 'Copied' : 'Copy JSON' }}
+                    </button>
+                  }
+                </div>
+                @if (payloadOpen()[delivery.id]) {
+                  @if (payloads()[delivery.id]; as payload) {
+                    <div class="payload">
+                      @for (line of payload.lines; track $index) {
+                        <div class="payload-line">
+                          @for (segment of line; track $index) {
+                            <span [attr.data-tone]="segment.tone">{{ segment.text }}</span>
+                          }
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <span class="skeleton bar"></span>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+    } @else if (!error()) {
+      @for (placeholder of [1, 2, 3]; track placeholder) {
+        <div class="row skeleton-row" aria-hidden="true">
+          <span class="skeleton pill"></span>
+          @if (global()) {
+            <span class="skeleton bar"></span>
+          }
+          <span class="skeleton bar"></span>
+          <span class="skeleton bar short"></span>
+          <span class="skeleton bar"></span>
+          <span class="skeleton bar short"></span>
+          <span></span>
+        </div>
+      }
+    }
+  </div>
+
+  @if (nextCursor()) {
+    <div class="more">
+      <button type="button" class="btn" [disabled]="loadingMore()" (click)="loadOlder()">
+        {{ loadingMore() ? 'Loading…' : 'Load older runs' }}
+      </button>
+    </div>
+  }
+</section>

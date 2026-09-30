@@ -17,7 +17,7 @@ export const pullRequestMerged = defineTrigger({
   id: 'github.pull_request.merged',
   appId: 'github',
   name: 'Pull request merged',
-  description: 'Runs when a pull request is merged. Closed without merging does not count.',
+  description: 'Runs when a pull request is merged into its base branch.',
   webhookEvent: 'pull_request',
   configFields: [
     { key: 'repository', label: 'Repository', kind: 'repository', required: true },

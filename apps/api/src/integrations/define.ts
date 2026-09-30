@@ -96,8 +96,25 @@ function resolveConfig(
   return { resolved, missing: [...missing] };
 }
 
+function settingsProblem(error: z.ZodError): string {
+  const details = Object.entries(fieldErrors(error))
+    .map(([key, message]) => `${key}: ${message}`)
+    .join('; ');
+  return `Settings invalid after mapping (${details})`;
+}
+
 export function defineAction<Config>(definition: ActionDefinition<Config>): Action {
   return {
+    preview(config, values) {
+      const { resolved, missing } = resolveConfig(definition.configFields, config, values);
+      const parsed = definition.config.safeParse(resolved);
+      return {
+        resolvedConfig: resolved,
+        missingFields: missing,
+        problem: parsed.success ? null : settingsProblem(parsed.error),
+      };
+    },
+
     descriptor: {
       id: definition.id,
       appId: definition.appId,
@@ -110,17 +127,10 @@ export function defineAction<Config>(definition: ActionDefinition<Config>): Acti
       const { resolved, missing } = resolveConfig(definition.configFields, config, values);
       const parsed = definition.config.safeParse(resolved);
       if (!parsed.success) {
-        const details = Object.entries(fieldErrors(parsed.error))
-          .map(([key, message]) => `${key}: ${message}`)
-          .join('; ');
         return {
           resolvedConfig: resolved,
           missingFields: missing,
-          result: {
-            ok: false,
-            retryable: false,
-            error: `Settings invalid after mapping (${details})`,
-          },
+          result: { ok: false, retryable: false, error: settingsProblem(parsed.error) },
         };
       }
       return {

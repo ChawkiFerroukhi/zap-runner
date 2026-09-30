@@ -31,6 +31,11 @@ export interface ZapWebhook {
   verifiedAt: string | null;
 }
 
+export interface ZapLastRun {
+  status: 'queued' | 'running' | 'retrying' | 'succeeded' | 'failed';
+  receivedAt: string;
+}
+
 export interface ZapDto {
   id: string;
   name: string;
@@ -39,6 +44,7 @@ export interface ZapDto {
   trigger: ZapStep;
   action: ZapStep;
   webhook: ZapWebhook | null;
+  lastRun: ZapLastRun | null;
   createdAt: string;
   updatedAt: string;
 }

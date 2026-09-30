@@ -2,108 +2,183 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 import { CopilotDrafts } from '../core/copilot-drafts';
-import { CopilotDialog } from '../features/zaps/copilot-dialog';
+import { NewZapDialog } from '../features/zaps/new-zap-dialog';
+import { Icon, type IconName } from '../ui/icon';
 import { CopilotActivity } from './copilot-activity';
+
+interface NavItem {
+  path: string;
+  label: string;
+  icon: IconName;
+}
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, CopilotDialog, CopilotActivity],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, NewZapDialog, CopilotActivity],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="shell">
+    <div class="layout">
       <aside class="sidebar">
-        <p class="wordmark">Zap Runner</p>
-        <nav aria-label="Primary" class="nav">
-          <p class="label">Workspace</p>
-          <a routerLink="/zaps" routerLinkActive="active" ariaCurrentWhenActive="page">Zaps</a>
-          <a routerLink="/settings" routerLinkActive="active" ariaCurrentWhenActive="page"
-            >Settings</a
-          >
+        <a class="brand" routerLink="/zaps">
+          <span class="mark"><app-icon name="bolt" [size]="14" [filled]="true" /></span>
+          <span class="name">Zap Runner</span>
+        </a>
+        <div class="rule"></div>
+        <nav class="nav" aria-label="Primary">
+          @for (item of nav; track item.path) {
+            <a
+              class="nav-item"
+              [routerLink]="item.path"
+              routerLinkActive="active"
+              ariaCurrentWhenActive="page"
+            >
+              <app-icon [name]="item.icon" />
+              <span>{{ item.label }}</span>
+            </a>
+          }
         </nav>
         @if (auth.user(); as user) {
           <div class="account">
-            <img [src]="user.avatarUrl" alt="" width="24" height="24" />
+            <img class="avatar" [src]="user.avatarUrl" alt="" width="28" height="28" />
             <span class="login">{{ user.login }}</span>
-            <button type="button" class="btn btn-ghost" (click)="signOut()">Sign out</button>
+            <button type="button" class="sign-out" (click)="signOut()">Sign out</button>
           </div>
         }
       </aside>
       <main class="content">
-        <router-outlet />
+        <div class="inner">
+          <router-outlet />
+        </div>
       </main>
     </div>
-    <app-copilot-dialog />
+    <app-new-zap-dialog />
     <app-copilot-activity />
   `,
   styles: `
-    .shell {
-      display: grid;
-      grid-template-columns: var(--sidebar-width) 1fr;
+    .layout {
+      display: flex;
+      min-width: 1360px;
       min-height: 100vh;
     }
     .sidebar {
+      position: sticky;
+      top: 0;
       display: flex;
+      flex: none;
       flex-direction: column;
-      gap: var(--space-5);
-      padding: var(--space-4) var(--space-3);
+      width: var(--sidebar-width);
+      height: 100vh;
+      padding: 20px 12px 16px;
       border-right: 1px solid var(--color-border);
-      background: var(--color-surface);
+      background: var(--color-bg);
     }
-    .wordmark {
-      padding: 0 var(--space-2);
-      font-size: var(--text-md);
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 32px;
+      padding: 0 10px;
+      color: var(--color-text-strong);
+    }
+    .brand:hover {
+      color: var(--color-text-strong);
+      text-decoration: none;
+    }
+    .mark {
+      display: flex;
+      flex: none;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: var(--radius-md);
+      background: var(--color-accent);
+      color: var(--color-accent-contrast);
+    }
+    .name {
+      font-size: var(--text-lg);
       font-weight: var(--weight-semibold);
       letter-spacing: -0.01em;
     }
+    .rule {
+      height: 1px;
+      margin: 16px 0 12px;
+      background: var(--color-divider);
+    }
     .nav {
-      display: grid;
+      display: flex;
+      flex-direction: column;
       gap: 2px;
     }
-    .nav .label {
-      padding: 0 var(--space-2) var(--space-1);
-    }
-    .nav a {
-      padding: 6px var(--space-2);
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 32px;
+      padding: 0 10px;
       border-radius: var(--radius-md);
       color: var(--color-text-muted);
-      font-weight: var(--weight-medium);
+      font-size: var(--text-md);
     }
-    .nav a:hover {
-      background: var(--color-surface-muted);
+    .nav-item app-icon {
+      opacity: 0.8;
+    }
+    .nav-item:hover,
+    .nav-item.active {
+      background: var(--color-hover);
       color: var(--color-text);
+      text-decoration: none;
     }
-    .nav a.active {
-      background: var(--color-surface-hover);
-      color: var(--color-text-strong);
+    .nav-item.active app-icon {
+      opacity: 1;
     }
     .account {
       display: flex;
       align-items: center;
-      gap: var(--space-2);
+      gap: 10px;
       margin-top: auto;
-      padding: var(--space-3) var(--space-2) 0;
+      padding: 14px 12px 0;
       border-top: 1px solid var(--color-border);
-    }
-    .account img {
-      border-radius: 50%;
     }
     .login {
       flex: 1;
-      overflow: hidden;
+      min-width: 0;
       font-weight: var(--weight-medium);
-      text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .sign-out {
+      flex: none;
+      padding: 4px 0;
+      border: 0;
+      background: transparent;
+      color: var(--color-text-muted);
+      font: inherit;
+      font-size: var(--text-sm);
+      cursor: pointer;
+    }
+    .sign-out:hover {
+      color: var(--color-text);
+    }
     .content {
+      flex: 1;
       min-width: 0;
-      padding: var(--space-6) var(--space-6) var(--space-8);
+      padding: 32px 40px 96px;
+    }
+    .inner {
+      max-width: var(--content-max-width);
     }
   `,
 })
 export class Shell {
   protected readonly auth = inject(AuthService);
-  private readonly drafts = inject(CopilotDrafts);
   private readonly router = inject(Router);
+  private readonly drafts = inject(CopilotDrafts);
+
+  protected readonly nav: NavItem[] = [
+    { path: '/zaps', label: 'Zaps', icon: 'bolt' },
+    { path: '/runs', label: 'Runs', icon: 'activity' },
+    { path: '/settings', label: 'Settings', icon: 'settings' },
+  ];
 
   protected async signOut(): Promise<void> {
     this.drafts.cancel();

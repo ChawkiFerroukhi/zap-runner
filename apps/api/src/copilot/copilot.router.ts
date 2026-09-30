@@ -1,3 +1,4 @@
+import { RequestError } from '@octokit/request-error';
 import {
   copilotDraftInputSchema,
   copilotKeyInputSchema,
@@ -61,6 +62,12 @@ export function copilotRouter(copilot: CopilotService): Router {
     } catch (error) {
       if (error instanceof CopilotCancelled) {
         req.log.info('copilot draft cancelled by the client');
+      } else if (error instanceof RequestError && error.status === 401) {
+        emit({
+          type: 'failed',
+          code: 'github_token_invalid',
+          message: 'GitHub no longer accepts your sign-in. Sign out and sign in again.',
+        });
       } else if (error instanceof HttpError) {
         emit({ type: 'failed', code: error.code, message: error.message });
       } else {

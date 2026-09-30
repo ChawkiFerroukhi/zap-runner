@@ -22,6 +22,8 @@ export interface StepView {
 export type DraftPhase =
   'idle' | 'working' | 'finalizing' | 'question' | 'ready' | 'unsupported' | 'failed';
 
+export type DialogView = 'choose' | 'describe';
+
 interface ReadyDraft {
   zapId: string;
   name: string;
@@ -49,8 +51,9 @@ export class CopilotDrafts {
   readonly message = signal('');
   readonly elapsed = signal(0);
   readonly dialogOpen = signal(false);
+  readonly view = signal<DialogView>('choose');
+  readonly describeText = signal('');
   readonly ready = signal<ReadyDraft | null>(null);
-  readonly promptToEdit = signal<string | null>(null);
 
   readonly busy = computed(() => this.phase() === 'working');
   readonly activeStep = computed(
@@ -72,10 +75,38 @@ export class CopilotDrafts {
   private lastInput: CopilotDraftInput | null = null;
   private finalizeTimer: ReturnType<typeof setTimeout> | null = null;
 
+  openNew(): void {
+    this.view.set(this.phase() === 'idle' ? 'choose' : 'describe');
+    this.dialogOpen.set(true);
+  }
+
+  chooseDescribe(): void {
+    this.view.set('describe');
+  }
+
+  backToChoose(): void {
+    this.view.set('choose');
+  }
+
+  chooseManual(): void {
+    this.dialogOpen.set(false);
+    void this.router.navigateByUrl('/zaps/new');
+  }
+
+  close(): void {
+    if (this.phase() === 'working' || this.phase() === 'finalizing') {
+      this.background();
+      return;
+    }
+    if (this.phase() !== 'idle' && this.phase() !== 'ready') this.reset();
+    this.dialogOpen.set(false);
+  }
+
   start(prompt: string): void {
     this.prompt.set(prompt);
     this.steps.set(INITIAL_STEPS);
     this.ready.set(null);
+    this.view.set('describe');
     this.dialogOpen.set(true);
     this.run({ prompt });
   }
@@ -102,6 +133,7 @@ export class CopilotDrafts {
       void this.review();
       return;
     }
+    this.view.set('describe');
     this.dialogOpen.set(true);
   }
 
@@ -116,18 +148,20 @@ export class CopilotDrafts {
 
   editDescription(): void {
     const prompt = this.prompt();
-    this.cancel();
-    this.promptToEdit.set(prompt);
-    void this.router.navigateByUrl('/zaps');
+    this.stop();
+    this.reset();
+    this.describeText.set(prompt);
+    this.view.set('describe');
+    this.dialogOpen.set(true);
   }
 
   async review(): Promise<void> {
     const ready = this.ready();
     if (!ready) return;
+    const prompt = this.prompt();
     this.reset();
-    await this.router.navigate(['/zaps', ready.zapId, 'edit'], {
-      state: copilotHandoff(ready.explanation),
-    });
+    this.describeText.set('');
+    await this.router.navigate(['/zaps', ready.zapId, 'edit'], { state: copilotHandoff(prompt) });
   }
 
   private run(input: CopilotDraftInput): void {
