@@ -25,6 +25,7 @@ import {
 import { map } from 'rxjs';
 import { toApiError } from '../../core/api-error';
 import { ToastService } from '../../core/toast.service';
+import { type Crumb, Breadcrumbs } from '../../ui/breadcrumbs';
 import { readCopilotHandoff } from '../../core/copilot-handoff';
 import { RegistryStore } from '../../core/registry.store';
 import { timeAgo } from '../../core/time';
@@ -73,7 +74,7 @@ function initialValue(
 
 @Component({
   selector: 'app-zap-builder-page',
-  imports: [ReactiveFormsModule, AppPicker, ConfigFieldControl],
+  imports: [ReactiveFormsModule, Breadcrumbs, AppPicker, ConfigFieldControl],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './zap-builder.page.html',
   styleUrl: './zap-builder.page.css',
@@ -132,6 +133,14 @@ export class ZapBuilderPage {
 
   protected readonly apps = computed(() => this.store.registry()?.apps ?? []);
   protected readonly editing = computed(() => this.zapId() !== undefined);
+  private readonly savedName = signal<string | null>(null);
+  protected readonly crumbs = computed<Crumb[]>(() => {
+    const root: Crumb = { label: 'Zaps', link: ['/zaps'] };
+    const zapId = this.zapId();
+    if (zapId === undefined) return [root, { label: 'New Zap' }];
+    const name = this.savedName();
+    return name ? [root, { label: name, link: ['/zaps', zapId] }, { label: 'Edit' }] : [root];
+  });
 
   protected readonly triggerOptions = computed(() => {
     const appId = this.value().triggerApp;
@@ -347,6 +356,7 @@ export class ZapBuilderPage {
   }
 
   private applyZap(zap: ZapDto): void {
+    this.savedName.set(zap.name);
     const trigger = this.store.trigger(zap.trigger.type);
     const action = this.store.action(zap.action.type);
     this.form.patchValue(

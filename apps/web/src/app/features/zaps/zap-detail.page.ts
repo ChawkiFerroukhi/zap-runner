@@ -14,6 +14,7 @@ import { RegistryStore } from '../../core/registry.store';
 import { ToastService } from '../../core/toast.service';
 import { timeAgo } from '../../core/time';
 import { ZapsApi } from '../../core/zaps.api';
+import { type Crumb, Breadcrumbs } from '../../ui/breadcrumbs';
 import { ZapStatusBadge } from '../../ui/status-badge';
 import { TokenText } from '../../ui/token-text';
 import { RunsPanel } from './runs-panel';
@@ -28,7 +29,7 @@ interface ActionDefinitionRow {
 
 @Component({
   selector: 'app-zap-detail-page',
-  imports: [RouterLink, ZapStatusBadge, RunsPanel, TokenText],
+  imports: [RouterLink, Breadcrumbs, ZapStatusBadge, RunsPanel, TokenText],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './zap-detail.page.html',
   styleUrl: './zap-detail.page.css',
@@ -70,6 +71,12 @@ export class ZapDetailPage {
       };
     });
     return { zap, summary: summarize(zap, this.registry), definitions };
+  });
+
+  protected readonly crumbs = computed<Crumb[]>(() => {
+    const zap = this.zap();
+    const root: Crumb = { label: 'Zaps', link: ['/zaps'] };
+    return zap ? [root, { label: zap.name }] : [root];
   });
 
   protected readonly resolvedNote = computed(() => {
