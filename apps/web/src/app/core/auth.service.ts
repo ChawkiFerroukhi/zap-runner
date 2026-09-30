@@ -19,6 +19,10 @@ export class AuthService {
     }
   }
 
+  clear(): void {
+    this.current.set(null);
+  }
+
   async signOut(): Promise<void> {
     await firstValueFrom(this.http.post('/api/auth/logout', null));
     this.current.set(null);

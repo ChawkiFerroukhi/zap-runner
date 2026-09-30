@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { RequestError } from '@octokit/request-error';
 import type { ZapDto, ZapInput } from '@zap-runner/shared';
 import type { GitHubClientFactory } from '../github/github-client.js';
-import { HttpError, notFoundError } from '../http/errors.js';
+import { githubRequestError, HttpError, notFoundError } from '../http/errors.js';
 import type { RepositoryRef } from '../integrations/definitions.js';
 import { toRepositoryRef } from '../integrations/define.js';
 import type { Registry } from '../integrations/registry.js';
@@ -34,14 +34,21 @@ interface Subscription {
 }
 
 function githubError(error: unknown, action: string): HttpError {
-  if (error instanceof RequestError) {
-    const reason =
-      error.status === 404
-        ? 'the repository was not found or your account is not an admin of it'
-        : error.message;
-    return new HttpError(422, 'github_error', `Could not ${action}: ${reason}`);
-  }
-  return new HttpError(502, 'github_unreachable', `Could not ${action}: GitHub did not respond`);
+  if (!(error instanceof RequestError))
+    return new HttpError(502, 'github_unreachable', `Could not ${action}: GitHub did not respond`);
+  if (error.status === 404 || error.status === 403)
+    return new HttpError(
+      422,
+      'github_error',
+      `Could not ${action}: the repository was not found or your account is not an admin of it`,
+    );
+  if (error.status === 422)
+    return new HttpError(
+      422,
+      'github_error',
+      `Could not ${action}: GitHub rejected the webhook for this repository`,
+    );
+  return githubRequestError(error);
 }
 
 export function createZapService(deps: ZapServiceDependencies): ZapService {

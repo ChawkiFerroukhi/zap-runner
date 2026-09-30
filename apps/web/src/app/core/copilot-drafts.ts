@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 import type {
   CopilotDraftInput,
@@ -7,8 +7,10 @@ import type {
   CopilotStepId,
 } from '@zap-runner/shared';
 import type { Subscription } from 'rxjs';
+import { AuthService } from './auth.service';
 import { CopilotApi } from './copilot.api';
 import { copilotHandoff } from './copilot-handoff';
+import { SessionRecovery } from './session-recovery';
 
 export type StepState = 'pending' | 'active' | 'done' | 'skipped';
 
@@ -43,6 +45,8 @@ const INITIAL_STEPS: StepView[] = [
 export class CopilotDrafts {
   private readonly api = inject(CopilotApi);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly recovery = inject(SessionRecovery);
 
   readonly prompt = signal('');
   readonly steps = signal<StepView[]>(INITIAL_STEPS);
@@ -65,7 +69,6 @@ export class CopilotDrafts {
       (step) => step.state === 'done' || step.state === 'skipped',
     ).length;
     if (this.phase() === 'finalizing' || this.phase() === 'ready') return 100;
-    if (this.phase() === 'finalizing' || this.phase() === 'ready') return 100;
     const active = steps.some((step) => step.state === 'active') ? 0.5 : 0;
     return Math.round(((finished + active) / steps.length) * 100);
   });
@@ -74,6 +77,15 @@ export class CopilotDrafts {
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastInput: CopilotDraftInput | null = null;
   private finalizeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    effect(() => {
+      if (!this.auth.signedIn())
+        untracked(() => {
+          this.cancel();
+        });
+    });
+  }
 
   openNew(): void {
     this.view.set(this.phase() === 'idle' ? 'choose' : 'describe');
@@ -199,6 +211,7 @@ export class CopilotDrafts {
       case 'failed':
         this.settle('failed');
         this.message.set(event.message);
+        this.recovery.handle(event);
         break;
       case 'drafted':
         this.settle('finalizing');

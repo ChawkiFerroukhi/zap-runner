@@ -6,7 +6,7 @@ import {
 } from '@zap-runner/shared';
 import { Router } from 'express';
 import { currentAuth, requireAuth } from '../auth/authenticate.js';
-import { HttpError, parseBody } from '../http/errors.js';
+import { githubRequestError, HttpError, parseBody } from '../http/errors.js';
 import { CopilotCancelled, type CopilotService } from './copilot-service.js';
 
 export function copilotRouter(copilot: CopilotService): Router {
@@ -62,12 +62,9 @@ export function copilotRouter(copilot: CopilotService): Router {
     } catch (error) {
       if (error instanceof CopilotCancelled) {
         req.log.info('copilot draft cancelled by the client');
-      } else if (error instanceof RequestError && error.status === 401) {
-        emit({
-          type: 'failed',
-          code: 'github_token_invalid',
-          message: 'GitHub no longer accepts your sign-in. Sign out and sign in again.',
-        });
+      } else if (error instanceof RequestError) {
+        const failure = githubRequestError(error);
+        emit({ type: 'failed', code: failure.code, message: failure.message });
       } else if (error instanceof HttpError) {
         emit({ type: 'failed', code: error.code, message: error.message });
       } else {

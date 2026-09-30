@@ -11,6 +11,7 @@ import { Router, RouterLink } from '@angular/router';
 import type { TestRunResult, ZapDto } from '@zap-runner/shared';
 import { toApiError } from '../../core/api-error';
 import { RegistryStore } from '../../core/registry.store';
+import { ToastService } from '../../core/toast.service';
 import { timeAgo } from '../../core/time';
 import { ZapsApi } from '../../core/zaps.api';
 import { ZapStatusBadge } from '../../ui/status-badge';
@@ -36,12 +37,14 @@ export class ZapDetailPage {
   private readonly api = inject(ZapsApi);
   private readonly registry = inject(RegistryStore);
   private readonly router = inject(Router);
+  private readonly toasts = inject(ToastService);
 
   readonly zapId = input.required<string>();
 
   private readonly zap = signal<ZapDto | null>(null);
   private readonly resolution = signal<TestRunResult | null>(null);
-  protected readonly error = signal<string | null>(null);
+  private readonly resolutionFailed = signal(false);
+  protected readonly loadError = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = signal(false);
   protected readonly testing = signal(false);
@@ -68,6 +71,7 @@ export class ZapDetailPage {
   });
 
   protected readonly resolvedNote = computed(() => {
+    if (this.resolutionFailed()) return 'Could not resolve the fields, showing templates';
     const resolution = this.resolution();
     if (!resolution?.trigger.matched) return null;
     if (resolution.source === 'sample' || !resolution.receivedAt)
@@ -96,11 +100,11 @@ export class ZapDetailPage {
 
   protected async runTest(zapId: string): Promise<void> {
     this.testing.set(true);
-    this.error.set(null);
     try {
       this.testResult.set(await this.api.testRun(zapId));
+      this.toasts.success('Test run finished');
     } catch (error) {
-      this.error.set(toApiError(error).message);
+      this.toasts.failure('Test run failed.', error);
     } finally {
       this.testing.set(false);
     }
@@ -108,11 +112,15 @@ export class ZapDetailPage {
 
   protected async toggle(zap: ZapDto): Promise<void> {
     this.busy.set(true);
-    this.error.set(null);
     try {
-      this.zap.set(await this.api.setEnabled(zap.id, !zap.enabled));
+      const updated = await this.api.setEnabled(zap.id, !zap.enabled);
+      this.zap.set(updated);
+      this.toasts.success(updated.enabled ? 'Zap turned on' : 'Zap turned off');
     } catch (error) {
-      this.error.set(toApiError(error).message);
+      this.toasts.failure(
+        zap.enabled ? 'Could not turn the Zap off.' : 'Could not turn the Zap on.',
+        error,
+      );
     } finally {
       this.busy.set(false);
     }
@@ -122,9 +130,10 @@ export class ZapDetailPage {
     this.busy.set(true);
     try {
       await this.api.remove(this.zapId());
+      this.toasts.success('Zap deleted');
       await this.router.navigateByUrl('/zaps');
     } catch (error) {
-      this.error.set(toApiError(error).message);
+      this.toasts.failure('Could not delete the Zap.', error);
       this.busy.set(false);
     }
   }
@@ -133,9 +142,19 @@ export class ZapDetailPage {
     try {
       const [zap] = await Promise.all([this.api.get(zapId), this.registry.load()]);
       this.zap.set(zap);
-      this.resolution.set(await this.api.testRun(zapId).catch(() => null));
+      await this.resolve(zapId);
     } catch (error) {
-      this.error.set(toApiError(error).message);
+      this.loadError.set(toApiError(error).message);
+    }
+  }
+
+  private async resolve(zapId: string): Promise<void> {
+    try {
+      this.resolution.set(await this.api.testRun(zapId));
+      this.resolutionFailed.set(false);
+    } catch {
+      this.resolution.set(null);
+      this.resolutionFailed.set(true);
     }
   }
 }

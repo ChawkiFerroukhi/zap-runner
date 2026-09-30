@@ -4,6 +4,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   access_denied: 'GitHub access was not granted. Try again and approve the request.',
   state_mismatch: 'The sign-in session expired or was tampered with. Start again.',
   github_error: 'GitHub could not complete the sign-in. Try again in a moment.',
+  rate_limited: 'Too many sign-in attempts. Wait a few minutes and try again.',
+  session_expired: 'Your session expired. Sign in again to continue.',
+  github_token_invalid: 'GitHub no longer accepts your previous sign-in. Sign in again.',
 };
 
 @Component({

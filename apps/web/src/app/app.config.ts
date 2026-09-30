@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import {
   type ApplicationConfig,
   inject,
@@ -8,11 +8,12 @@ import {
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { routes } from './app.routes';
 import { AuthService } from './core/auth.service';
+import { sessionRecoveryInterceptor } from './core/session-recovery';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideHttpClient(),
+    provideHttpClient(withInterceptors([sessionRecoveryInterceptor])),
     provideRouter(routes, withComponentInputBinding()),
     provideAppInitializer(() => inject(AuthService).load()),
   ],

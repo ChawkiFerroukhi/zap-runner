@@ -38,7 +38,7 @@
     }
   </div>
 
-  @if (error(); as message) {
+  @if (loadError(); as message) {
     <p class="notice notice-danger" role="alert">{{ message }}</p>
   }
 
@@ -169,7 +169,7 @@
       [repository]="view.summary.repository"
       [enabled]="view.zap.enabled"
     />
-  } @else if (!error()) {
+  } @else if (!loadError()) {
     <div class="cards" aria-busy="true" aria-label="Loading Zap">
       <div class="card"><span class="skeleton block"></span></div>
       <div class="card"><span class="skeleton block"></span></div>

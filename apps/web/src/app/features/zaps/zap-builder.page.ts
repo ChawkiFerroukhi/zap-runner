@@ -10,7 +10,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import type { FormControl } from '@angular/forms';
 import { FormRecord, NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import {
   resolveTemplate,
   templateReferences,
@@ -24,6 +24,7 @@ import {
 } from '@zap-runner/shared';
 import { map } from 'rxjs';
 import { toApiError } from '../../core/api-error';
+import { ToastService } from '../../core/toast.service';
 import { readCopilotHandoff } from '../../core/copilot-handoff';
 import { RegistryStore } from '../../core/registry.store';
 import { timeAgo } from '../../core/time';
@@ -72,7 +73,7 @@ function initialValue(
 
 @Component({
   selector: 'app-zap-builder-page',
-  imports: [ReactiveFormsModule, RouterLink, AppPicker, ConfigFieldControl],
+  imports: [ReactiveFormsModule, AppPicker, ConfigFieldControl],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './zap-builder.page.html',
   styleUrl: './zap-builder.page.css',
@@ -80,6 +81,7 @@ function initialValue(
 export class ZapBuilderPage {
   private readonly api = inject(ZapsApi);
   private readonly router = inject(Router);
+  private readonly toasts = inject(ToastService);
   private readonly fb = inject(NonNullableFormBuilder);
   protected readonly store = inject(RegistryStore);
 
@@ -114,11 +116,15 @@ export class ZapBuilderPage {
   protected readonly repositories = signal<RepositoryOption[] | null>(null);
   protected readonly repositoriesError = signal<string | null>(null);
   protected readonly triggerFields = signal<BoundField[]>([]);
-  private readonly loadedSample = signal<{ triggerId: string; sample: TriggerSample } | null>(null);
-  private readonly sample = computed(() => {
+  private readonly loadedSample = signal<{
+    triggerId: string;
+    sample: TriggerSample | null;
+  } | null>(null);
+  private readonly currentSample = computed(() => {
     const loaded = this.loadedSample();
-    return loaded?.triggerId === this.selectedTriggerId() ? loaded.sample : null;
+    return loaded?.triggerId === this.selectedTriggerId() ? loaded : null;
   });
+  private readonly sample = computed(() => this.currentSample()?.sample ?? null);
   protected readonly actionFields = signal<BoundField[]>([]);
 
   private focusedTemplate: { key: string; element: TemplateElement } | null = null;
@@ -161,6 +167,8 @@ export class ZapBuilderPage {
     if (sample?.source === 'latest-event' && sample.receivedAt) {
       return `Rendered with your latest real event, received ${timeAgo(sample.receivedAt)}.`;
     }
+    if (this.currentSample()?.sample === null)
+      return 'Could not load your latest event, so this uses a built-in sample event.';
     return 'Rendered with a built-in sample event until one of your Zaps receives a real one.';
   });
 
@@ -302,6 +310,7 @@ export class ZapBuilderPage {
     try {
       const zapId = this.zapId();
       const saved = zapId ? await this.api.update(zapId, input) : await this.api.create(input);
+      this.toasts.success(draft ? 'Draft saved' : 'Zap saved');
       await this.router.navigate(['/zaps', saved.id]);
     } catch (error) {
       const detail = toApiError(error);
@@ -418,7 +427,7 @@ export class ZapBuilderPage {
       const sample = await this.api.triggerSample(triggerId);
       this.loadedSample.set({ triggerId, sample });
     } catch {
-      this.loadedSample.set(null);
+      this.loadedSample.set({ triggerId, sample: null });
     }
   }
 

@@ -18,6 +18,7 @@ import type {
   RunRange,
 } from '@zap-runner/shared';
 import { toApiError } from '../../core/api-error';
+import { ToastService } from '../../core/toast.service';
 import { DeliveryStream } from '../../core/delivery-stream';
 import { highlightJson, type JsonSegment } from '../../core/json-highlight';
 import { timeAgo } from '../../core/time';
@@ -90,6 +91,7 @@ function resultUrl(delivery: DeliveryDto): string | null {
 export class RunsPanel {
   private readonly api = inject(ZapsApi);
   private readonly stream = inject(DeliveryStream);
+  private readonly toasts = inject(ToastService);
 
   readonly zapId = input<string | null>(null);
   readonly repository = input('');
@@ -229,7 +231,7 @@ export class RunsPanel {
       this.items.update((current) => [...(current ?? []), ...page.items]);
       this.nextCursor.set(page.nextCursor);
     } catch (error) {
-      this.error.set(toApiError(error).message);
+      this.toasts.failure('Could not load older runs.', error);
     } finally {
       this.loadingMore.set(false);
     }
@@ -247,14 +249,20 @@ export class RunsPanel {
         [delivery.id]: { text, lines: highlightJson(text) },
       }));
     } catch (error) {
-      this.error.set(toApiError(error).message);
+      this.payloadOpen.update((current) => ({ ...current, [delivery.id]: false }));
+      this.toasts.failure('Could not load the payload.', error);
     }
   }
 
   protected async copyPayload(deliveryId: string): Promise<void> {
     const payload = this.payloads()[deliveryId];
     if (!payload) return;
-    await navigator.clipboard.writeText(payload.text);
+    try {
+      await navigator.clipboard.writeText(payload.text);
+    } catch {
+      this.toasts.error('Could not copy the payload. Select the text and copy it manually.');
+      return;
+    }
     this.copied.set(deliveryId);
     setTimeout(() => {
       this.copied.set(null);
@@ -263,12 +271,12 @@ export class RunsPanel {
 
   protected async replay(delivery: DeliveryDto): Promise<void> {
     this.replaying.set(delivery.id);
-    this.error.set(null);
     try {
       const { deliveryId } = await this.api.replay(delivery.zapId, delivery.id);
       this.expanded.set(deliveryId);
+      this.toasts.success('Replay queued');
     } catch (error) {
-      this.error.set(toApiError(error).message);
+      this.toasts.failure('Could not replay the run.', error);
     } finally {
       this.replaying.set(null);
     }

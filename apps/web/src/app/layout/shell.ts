@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
-import { CopilotDrafts } from '../core/copilot-drafts';
+import { SessionRecovery } from '../core/session-recovery';
 import { NewZapDialog } from '../features/zaps/new-zap-dialog';
 import { Icon, type IconName } from '../ui/icon';
 import { CopilotActivity } from './copilot-activity';
+import { ToastOutlet } from './toast-outlet';
 
 interface NavItem {
   path: string;
@@ -14,7 +15,15 @@ interface NavItem {
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, NewZapDialog, CopilotActivity],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    Icon,
+    NewZapDialog,
+    CopilotActivity,
+    ToastOutlet,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="layout">
@@ -53,6 +62,7 @@ interface NavItem {
     </div>
     <app-new-zap-dialog />
     <app-copilot-activity />
+    <app-toast-outlet />
   `,
   styles: `
     .layout {
@@ -171,8 +181,7 @@ interface NavItem {
 })
 export class Shell {
   protected readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
-  private readonly drafts = inject(CopilotDrafts);
+  private readonly recovery = inject(SessionRecovery);
 
   protected readonly nav: NavItem[] = [
     { path: '/zaps', label: 'Zaps', icon: 'bolt' },
@@ -181,8 +190,6 @@ export class Shell {
   ];
 
   protected async signOut(): Promise<void> {
-    this.drafts.cancel();
-    await this.auth.signOut();
-    await this.router.navigateByUrl('/sign-in');
+    await this.recovery.signOut();
   }
 }

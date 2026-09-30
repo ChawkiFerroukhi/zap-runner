@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import type { CopilotProviderId, CopilotStatus } from '@zap-runner/shared';
 import { toApiError } from '../../core/api-error';
+import { ToastService } from '../../core/toast.service';
 import { AuthService } from '../../core/auth.service';
 import { CopilotApi } from '../../core/copilot.api';
 
@@ -129,9 +130,6 @@ const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
                 @if (error(); as message) {
                   <span class="field-error" role="alert">{{ message }}</span>
                 }
-                @if (saved()) {
-                  <span class="field-help" role="status">Key verified and saved.</span>
-                }
               </div>
             }
 
@@ -154,6 +152,8 @@ const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
               </button>
             </div>
           </form>
+        } @else if (loadError(); as message) {
+          <p class="notice notice-danger" role="alert">{{ message }}</p>
         } @else {
           <span class="skeleton line"></span>
         }
@@ -278,6 +278,7 @@ const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
 export class SettingsPage {
   protected readonly auth = inject(AuthService);
   private readonly copilot = inject(CopilotApi);
+  private readonly toasts = inject(ToastService);
 
   protected readonly form = inject(NonNullableFormBuilder).group({
     provider: this.initialProvider(),
@@ -292,7 +293,7 @@ export class SettingsPage {
   protected readonly status = signal<CopilotStatus | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly saved = signal(false);
+  protected readonly loadError = signal<string | null>(null);
 
   protected readonly selected = computed(() =>
     this.status()?.providers.find((provider) => provider.id === this.selectedProvider()),
@@ -308,14 +309,20 @@ export class SettingsPage {
     await this.run(async () => {
       this.status.set(await this.copilot.saveKey(provider, apiKey));
       this.form.controls.apiKey.reset();
-      this.saved.set(true);
+      this.toasts.success('Copilot key verified and saved');
     });
   }
 
   protected async remove(): Promise<void> {
-    await this.run(async () => {
+    this.busy.set(true);
+    try {
       this.status.set(await this.copilot.removeKey());
-    });
+      this.toasts.success('Copilot key removed');
+    } catch (error) {
+      this.toasts.failure('Could not remove the key.', error);
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   private initialProvider(): CopilotProviderId {
@@ -325,7 +332,6 @@ export class SettingsPage {
   private async run(task: () => Promise<void>): Promise<void> {
     this.busy.set(true);
     this.error.set(null);
-    this.saved.set(false);
     try {
       await task();
     } catch (error) {
@@ -342,7 +348,7 @@ export class SettingsPage {
       this.status.set(status);
       if (status.provider) this.form.controls.provider.setValue(status.provider.id);
     } catch (error) {
-      this.error.set(toApiError(error).message);
+      this.loadError.set(toApiError(error).message);
     }
   }
 }

@@ -14,6 +14,7 @@ import type { GitHubClientFactory } from './github/github-client.js';
 import { repositoriesRouter } from './github/repositories.router.js';
 import { errorHandler, notFound } from './http/errors.js';
 import { healthRouter, type ReadinessChecks } from './http/health.js';
+import { DEFAULT_RATE_LIMITS, limiter, type RateLimits } from './http/rate-limit.js';
 import { requireSameOrigin } from './http/same-origin.js';
 import type { Registry } from './integrations/registry.js';
 import { triggersRouter } from './integrations/triggers.router.js';
@@ -29,6 +30,7 @@ export interface AppDependencies extends AuthRouterDependencies, WebhookRouterDe
   deliveries: DeliveriesRepository;
   events: DeliveryEvents;
   githubFor: GitHubClientFactory;
+  rateLimits?: RateLimits;
 }
 
 export function createApp(deps: AppDependencies): Express {
@@ -49,12 +51,24 @@ export function createApp(deps: AppDependencies): Express {
   );
 
   app.use('/api', healthRouter(deps.readiness));
-  app.use('/webhooks', webhookRouter(deps));
+  const limits = deps.rateLimits ?? DEFAULT_RATE_LIMITS;
+
+  app.use('/webhooks', limiter(limits.webhooks), webhookRouter(deps));
 
   const api = express.Router();
   api.use(requireSameOrigin(deps.appUrl));
   api.use(express.json({ limit: '100kb' }));
   api.use(authenticate(deps.sessions, deps.users));
+  api.use(
+    '/auth/github',
+    limiter(limits.signIn, {
+      onLimited: (_req, res) => {
+        res.redirect(`${deps.appUrl}/sign-in?error=rate_limited`);
+      },
+    }),
+  );
+  api.post('/copilot/drafts', limiter(limits.copilotDrafts));
+  api.use(limiter(limits.writes, { onlyWrites: true }));
   api.use('/auth', authRouter(deps));
   api.get('/registry', requireAuth, (_req, res) => {
     res.json(deps.registry.describe());
