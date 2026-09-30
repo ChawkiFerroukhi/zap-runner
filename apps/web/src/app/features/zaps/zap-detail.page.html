@@ -1,6 +1,6 @@
 <div class="page">
   <div>
-    <a class="breadcrumb" routerLink="/zaps">Zaps</a>
+    <app-breadcrumbs [items]="crumbs()" />
     @if (view(); as view) {
       <div class="page-header">
         <div class="title">

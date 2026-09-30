@@ -95,7 +95,7 @@ const SKELETON_WIDTHS: [string, string][] = [
                     <span class="last-label" [attr.data-tone]="lastRun.tone">{{
                       lastRun.label
                     }}</span>
-                    <span class="subtle">{{ lastRun.when }}</span>
+                    <span class="subtle truncate">{{ lastRun.when }}</span>
                   } @else {
                     <span class="subtle">—</span>
                   }
@@ -139,7 +139,7 @@ const SKELETON_WIDTHS: [string, string][] = [
       display: grid;
       grid-template-columns:
         minmax(230px, 1.4fr) minmax(0, 1.5fr) minmax(0, 1.3fr)
-        140px 76px 92px 12px;
+        140px 76px 112px 12px;
       align-items: center;
       gap: 16px;
       padding: 0 20px;
@@ -203,9 +203,10 @@ const SKELETON_WIDTHS: [string, string][] = [
     }
     .last-run {
       display: flex;
-      align-items: baseline;
-      gap: 6px;
+      flex-direction: column;
+      min-width: 0;
       font-size: var(--text-sm);
+      line-height: 18px;
       white-space: nowrap;
     }
     .last-label {
