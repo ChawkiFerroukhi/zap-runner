@@ -40,6 +40,7 @@ describe('user isolation', () => {
     ['enable', 'post', '/enable'],
     ['disable', 'post', '/disable'],
     ['delete', 'delete', ''],
+    ['duplicate', 'post', '/duplicate'],
     ['list deliveries of', 'get', '/deliveries'],
   ] as const)('answers 404 when another user tries to %s a Zap', async (_verb, method, suffix) => {
     const agent = request(context.app);

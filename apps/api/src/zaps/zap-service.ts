@@ -19,6 +19,7 @@ export interface ZapService {
   enable(userId: string, zapId: string): Promise<ZapDto>;
   disable(userId: string, zapId: string): Promise<ZapDto>;
   remove(userId: string, zapId: string): Promise<void>;
+  duplicate(userId: string, zapId: string): Promise<ZapDto>;
 }
 
 export interface ZapServiceDependencies {
@@ -26,6 +27,13 @@ export interface ZapServiceDependencies {
   githubFor: GitHubClientFactory;
   secretBox: SecretBox;
   webhookUrl: (zapId: string) => string;
+}
+
+const NAME_MAX_LENGTH = 120;
+const COPY_SUFFIX = ' (copy)';
+
+export function copyName(name: string): string {
+  return `${name.slice(0, NAME_MAX_LENGTH - COPY_SUFFIX.length).trimEnd()}${COPY_SUFFIX}`;
 }
 
 interface Subscription {
@@ -122,15 +130,17 @@ export function createZapService(deps: ZapServiceDependencies): ZapService {
     );
   }
 
+  async function create(userId: string, input: ZapInput): Promise<ZapDto> {
+    if (!input.draft) assertValidZap(input, deps.registry);
+    return userZaps(userId).create(input);
+  }
+
   return {
     list: (userId) => userZaps(userId).list(),
 
     get: owned,
 
-    async create(userId, input) {
-      if (!input.draft) assertValidZap(input, deps.registry);
-      return userZaps(userId).create(input);
-    },
+    create,
 
     async update(userId, zapId, input) {
       const current = await owned(userId, zapId);
@@ -180,6 +190,16 @@ export function createZapService(deps: ZapServiceDependencies): ZapService {
       const zap = await owned(userId, zapId);
       await unsubscribe(userId, zap.webhook);
       await userZaps(userId).remove(zapId);
+    },
+
+    async duplicate(userId, zapId) {
+      const source = await owned(userId, zapId);
+      return create(userId, {
+        name: copyName(source.name),
+        draft: source.draft,
+        trigger: { type: source.trigger.type, config: source.trigger.config },
+        action: { type: source.action.type, config: source.action.config },
+      });
     },
   };
 }

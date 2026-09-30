@@ -49,6 +49,7 @@ export class ZapDetailPage {
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = signal(false);
   protected readonly testing = signal(false);
+  protected readonly duplicating = signal(false);
   protected readonly testResult = signal<TestRunResult | null>(null);
   protected readonly monogram = monogram;
 
@@ -124,6 +125,19 @@ export class ZapDetailPage {
       );
     } finally {
       this.busy.set(false);
+    }
+  }
+
+  protected async duplicate(zapId: string): Promise<void> {
+    this.duplicating.set(true);
+    try {
+      const copy = await this.api.duplicate(zapId);
+      this.toasts.success('Copy created. It stays off until you turn it on.');
+      await this.router.navigate(['/zaps', copy.id, 'edit']);
+    } catch (error) {
+      this.toasts.failure('Could not duplicate the Zap.', error);
+    } finally {
+      this.duplicating.set(false);
     }
   }
 

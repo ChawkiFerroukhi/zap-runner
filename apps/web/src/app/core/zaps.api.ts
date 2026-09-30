@@ -37,6 +37,10 @@ export class ZapsApi {
     return firstValueFrom(this.http.post<ZapDto>(`/api/zaps/${zapId}/${action}`, null));
   }
 
+  duplicate(zapId: string): Promise<ZapDto> {
+    return firstValueFrom(this.http.post<ZapDto>(`/api/zaps/${zapId}/duplicate`, null));
+  }
+
   async remove(zapId: string): Promise<void> {
     await firstValueFrom(this.http.delete(`/api/zaps/${zapId}`));
   }

@@ -62,6 +62,10 @@ export function zapsRouter({
     res.json(await zaps.disable(currentAuth(req).user.id, req.params.zapId));
   });
 
+  router.post('/:zapId/duplicate', async (req, res) => {
+    res.status(201).json(await zaps.duplicate(currentAuth(req).user.id, req.params.zapId));
+  });
+
   router.delete('/:zapId', async (req, res) => {
     await zaps.remove(currentAuth(req).user.id, req.params.zapId);
     res.status(204).end();
