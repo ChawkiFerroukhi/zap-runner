@@ -6,7 +6,7 @@ export function useTestDatabase(): void {
   let server: MongoMemoryServer | undefined;
 
   beforeAll(async () => {
-    server = await MongoMemoryServer.create();
+    server = await MongoMemoryServer.create({ instance: { launchTimeout: 45_000 } });
     await mongoose.connect(server.getUri());
     await mongoose.connection.syncIndexes();
   });

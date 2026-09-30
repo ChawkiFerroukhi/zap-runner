@@ -5,9 +5,53 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
+  typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -19,14 +63,61 @@ jobs:
           path: ~/.cache/mongodb-binaries
           key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run format:check
       - run: npm test
 
   images:
+    needs: [typecheck, lint, format, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - run: docker build -f apps/api/Dockerfile -t zap-runner-api .
       - run: docker build -f apps/web/Dockerfile -t zap-runner-web .
+      - run: docker save zap-runner-api zap-runner-web | gzip > images.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: images
+          path: images.tar.gz
+          retention-days: 1
+
+  smoke:
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      COMPOSE_PROJECT_NAME: zap-runner
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: images
+      - run: gunzip -c images.tar.gz | docker load
+      - name: Write a placeholder .env
+        run: |
+          cp .env.example .env
+          sed -i \
+            -e 's|^NODE_ENV=.*|NODE_ENV=production|' \
+            -e 's|^GITHUB_CLIENT_ID=.*|GITHUB_CLIENT_ID=ci-client-id|' \
+            -e 's|^GITHUB_CLIENT_SECRET=.*|GITHUB_CLIENT_SECRET=ci-client-secret|' \
+            -e "s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=$(openssl rand -base64 32)|" \
+            -e 's|^WEBHOOK_PUBLIC_URL=.*|WEBHOOK_PUBLIC_URL=https://smee.io/ci-smoke|' \
+            .env
+      - run: docker compose up -d --no-build --wait --wait-timeout 120 mongo api web
+      - name: App is served
+        run: curl -fsS http://localhost:8080/ | grep -q '<app-root'
+      - name: API is ready through nginx
+        run: curl -fsS http://localhost:8080/api/ready
+      - name: Unauthenticated requests are rejected
+        run: test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/auth/me)" = 401
+      - name: Sign-in redirects to GitHub with the configured client
+        run: |
+          location=$(curl -s -o /dev/null -w '%{redirect_url}' http://localhost:8080/api/auth/github/login)
+          echo "$location"
+          case "$location" in
+            https://github.com/login/oauth/authorize*client_id=ci-client-id*) ;;
+            *) exit 1 ;;
+          esac
+      - if: failure()
+        run: docker compose logs --no-color
+      - if: always()
+        run: docker compose down -v
