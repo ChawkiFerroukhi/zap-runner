@@ -60,6 +60,24 @@ export interface TemplateFocus {
           }
         </div>
       }
+      @case ('select') {
+        <div class="field">
+          <label class="field-label" [attr.for]="'field-' + field.key">{{ field.label }}</label>
+          <div class="select-wrap">
+            <select class="select" [id]="'field-' + field.key" [formControl]="control">
+              @for (option of field.options ?? []; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </div>
+          @if (field.help) {
+            <span class="field-help">{{ field.help }}</span>
+          }
+          @if (error(); as message) {
+            <span class="field-error">{{ message }}</span>
+          }
+        </div>
+      }
       @case ('text') {
         <div class="field">
           <label class="field-label" [attr.for]="'field-' + field.key">{{ field.label }}</label>

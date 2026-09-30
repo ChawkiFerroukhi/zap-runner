@@ -45,6 +45,7 @@ export function defineTrigger<
     descriptor: {
       id: definition.id,
       appId: definition.appId,
+      group: definition.group,
       name: definition.name,
       description: definition.description,
       configFields: definition.configFields,
@@ -118,6 +119,7 @@ export function defineAction<Config>(definition: ActionDefinition<Config>): Acti
     descriptor: {
       id: definition.id,
       appId: definition.appId,
+      group: definition.group,
       name: definition.name,
       description: definition.description,
       configFields: definition.configFields,

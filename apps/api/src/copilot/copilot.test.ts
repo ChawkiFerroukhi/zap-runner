@@ -281,8 +281,7 @@ describe('copilot', () => {
       expect(second.at(-1)).toMatchObject({ type: 'drafted' });
       expect(model.requests).toHaveLength(1);
       expect(second.at(-1)).toMatchObject({
-        explanation:
-          'Pull request opened on chawki/website, then comment on pull request or issue.',
+        explanation: 'Pull request opened on chawki/website, then comment on the pull request.',
       });
       expect((await ZapModel.findOne().lean())?.trigger.config).toMatchObject({
         repository: 'chawki/website',

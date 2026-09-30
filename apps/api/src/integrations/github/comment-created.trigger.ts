@@ -27,25 +27,16 @@ const payload = z.object({
 
 const config = z.object({
   repository: repositoryName,
-  pullRequestsOnly: z.boolean().default(false),
 });
 
 export const commentCreated = defineTrigger({
   id: 'github.issue_comment.created',
   appId: 'github',
-  name: 'Comment created',
-  description: 'Runs when someone comments on a pull request or issue.',
+  group: 'Reviews and comments',
+  name: 'Pull request comment created',
+  description: 'Runs when someone comments on a pull request. Comments posted by Zaps are ignored.',
   webhookEvent: 'issue_comment',
-  configFields: [
-    { key: 'repository', label: 'Repository', kind: 'repository', required: true },
-    {
-      key: 'pullRequestsOnly',
-      label: 'Only comments on pull requests',
-      kind: 'boolean',
-      required: false,
-      default: false,
-    },
-  ],
+  configFields: [{ key: 'repository', label: 'Repository', kind: 'repository', required: true }],
   config,
   payload,
   outputFields: [
@@ -95,11 +86,11 @@ export const commentCreated = defineTrigger({
     if (!sameRepository(event, settings.repository)) {
       return { matched: false, reason: `Event is for ${event.repository.full_name}` };
     }
+    if (!event.issue.pull_request) {
+      return { matched: false, reason: 'Comment is on an issue, not a pull request' };
+    }
     if (hasLoopMarker(event.comment.body)) {
       return { matched: false, reason: 'Comment was posted by a Zap' };
-    }
-    if (settings.pullRequestsOnly && !event.issue.pull_request) {
-      return { matched: false, reason: 'Comment is on an issue, not a pull request' };
     }
     return { matched: true };
   },

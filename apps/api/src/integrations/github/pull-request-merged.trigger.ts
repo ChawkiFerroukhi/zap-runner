@@ -16,6 +16,7 @@ const config = z.object({
 export const pullRequestMerged = defineTrigger({
   id: 'github.pull_request.merged',
   appId: 'github',
+  group: 'Pull requests',
   name: 'Pull request merged',
   description: 'Runs when a pull request is merged into its base branch.',
   webhookEvent: 'pull_request',

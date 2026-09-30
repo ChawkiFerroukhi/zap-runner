@@ -80,8 +80,12 @@
               <label class="field-label" for="trigger-type">Event</label>
               <div class="select-wrap">
                 <select id="trigger-type" class="select" formControlName="triggerType">
-                  @for (option of triggerOptions(); track option.id) {
-                    <option [value]="option.id">{{ option.name }}</option>
+                  @for (group of triggerGroups(); track group.group) {
+                    <optgroup [label]="group.group">
+                      @for (option of group.items; track option.id) {
+                        <option [value]="option.id">{{ option.name }}</option>
+                      }
+                    </optgroup>
                   }
                 </select>
               </div>
@@ -124,8 +128,12 @@
               <label class="field-label" for="action-type">Action</label>
               <div class="select-wrap">
                 <select id="action-type" class="select" formControlName="actionType">
-                  @for (option of actionOptions(); track option.id) {
-                    <option [value]="option.id">{{ option.name }}</option>
+                  @for (group of actionGroups(); track group.group) {
+                    <optgroup [label]="group.group">
+                      @for (option of group.items; track option.id) {
+                        <option [value]="option.id">{{ option.name }}</option>
+                      }
+                    </optgroup>
                   }
                 </select>
               </div>

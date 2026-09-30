@@ -36,7 +36,7 @@ describe('pull request merged trigger', () => {
 });
 
 describe('comment created trigger', () => {
-  const config = { repository: 'chawki/playground', pullRequestsOnly: false };
+  const config = { repository: 'chawki/playground' };
 
   it('matches a human comment and exposes the comment and its issue', () => {
     expect(commentCreated.evaluate(commentPayload(), config)).toMatchObject({
@@ -53,11 +53,11 @@ describe('comment created trigger', () => {
     });
   });
 
-  it('can be limited to comments on pull requests', () => {
+  it('only runs for comments on pull requests, not on issues', () => {
     const onIssue = commentPayload({ onPullRequest: false });
-    expect(commentCreated.evaluate(onIssue, { ...config, pullRequestsOnly: true }).status).toBe(
-      'skipped',
-    );
-    expect(commentCreated.evaluate(onIssue, config).status).toBe('matched');
+    expect(commentCreated.evaluate(onIssue, config)).toEqual({
+      status: 'skipped',
+      reason: 'Comment is on an issue, not a pull request',
+    });
   });
 });

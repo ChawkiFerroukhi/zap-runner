@@ -27,6 +27,7 @@ export interface TriggerDefinition<
 > {
   id: string;
   appId: string;
+  group: string;
   name: string;
   description: string;
   webhookEvent: string;
@@ -66,6 +67,7 @@ export type ActionResult =
 export interface ActionDefinition<Config> {
   id: string;
   appId: string;
+  group: string;
   name: string;
   description: string;
   configFields: ConfigField[];

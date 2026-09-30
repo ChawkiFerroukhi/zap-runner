@@ -5,15 +5,16 @@ import { withLoopMarker } from './loop-marker.js';
 
 const config = z.object({
   repository: repositoryName,
-  number: z.coerce.number().int().positive('Must resolve to a pull request or issue number'),
+  number: z.coerce.number().int().positive('Must resolve to a pull request number'),
   body: z.string().trim().min(1, 'Comment resolved to empty text'),
 });
 
 export const comment = defineAction({
   id: 'github.comment',
   appId: 'github',
-  name: 'Comment on pull request or issue',
-  description: 'Posts a comment on a pull request or issue as your GitHub account.',
+  group: 'Pull requests',
+  name: 'Comment on the pull request',
+  description: 'Posts a comment on a pull request as your GitHub account.',
   configFields: [
     {
       key: 'body',
@@ -33,11 +34,11 @@ export const comment = defineAction({
     },
     {
       key: 'number',
-      label: 'Pull request or issue number',
+      label: 'Pull request number',
       kind: 'template',
       required: true,
       default: '{{pr.number}}',
-      help: 'Maps to the pull request or issue that triggered the Zap.',
+      help: 'Maps to the pull request that triggered the Zap.',
     },
   ],
   config,

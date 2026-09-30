@@ -16,6 +16,7 @@ const config = z.object({
 export const pullRequestOpened = defineTrigger({
   id: 'github.pull_request.opened',
   appId: 'github',
+  group: 'Pull requests',
   name: 'Pull request opened',
   description: 'Runs when a pull request is opened in the repository.',
   webhookEvent: 'pull_request',

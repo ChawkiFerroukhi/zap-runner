@@ -42,6 +42,17 @@ interface PreviewItem {
 
 type TemplateElement = HTMLInputElement | HTMLTextAreaElement;
 
+interface Grouped<T> {
+  group: string;
+  items: T[];
+}
+
+function groupBy<T extends { group: string }>(items: T[]): Grouped<T>[] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) groups.set(item.group, [...(groups.get(item.group) ?? []), item]);
+  return [...groups].map(([group, grouped]) => ({ group, items: grouped }));
+}
+
 function isTemplateKind(field: ConfigField): boolean {
   return field.kind === 'template' || field.kind === 'multiline-template';
 }
@@ -120,6 +131,9 @@ export class ZapBuilderPage {
     const appId = this.value().triggerApp;
     return this.store.registry()?.triggers.filter((trigger) => trigger.appId === appId) ?? [];
   });
+
+  protected readonly triggerGroups = computed(() => groupBy(this.triggerOptions()));
+  protected readonly actionGroups = computed(() => groupBy(this.actionOptions()));
 
   protected readonly actionOptions = computed(() => {
     const appId = this.value().actionApp;

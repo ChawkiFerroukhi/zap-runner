@@ -1,6 +1,12 @@
 import type { FieldMap } from '../template/fields.js';
 
-export type ConfigFieldKind = 'text' | 'template' | 'multiline-template' | 'repository' | 'boolean';
+export type ConfigFieldKind =
+  'text' | 'template' | 'multiline-template' | 'repository' | 'boolean' | 'select';
+
+export interface ConfigOption {
+  value: string;
+  label: string;
+}
 
 export interface ConfigField {
   key: string;
@@ -10,6 +16,7 @@ export interface ConfigField {
   default?: string | boolean;
   placeholder?: string;
   help?: string;
+  options?: ConfigOption[];
 }
 
 export interface OutputField {
@@ -27,6 +34,7 @@ export interface AppDescriptor {
 export interface TriggerDescriptor {
   id: string;
   appId: string;
+  group: string;
   name: string;
   description: string;
   configFields: ConfigField[];
@@ -38,6 +46,7 @@ export interface TriggerDescriptor {
 export interface ActionDescriptor {
   id: string;
   appId: string;
+  group: string;
   name: string;
   description: string;
   configFields: ConfigField[];

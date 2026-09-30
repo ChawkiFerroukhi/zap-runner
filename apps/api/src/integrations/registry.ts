@@ -1,7 +1,15 @@
 import type { AppDescriptor, RegistryResponse } from '@zap-runner/shared';
 import type { Action, Trigger } from './definitions.js';
+import { addAssignees } from './github/actions/add-assignees.action.js';
+import { addLabels } from './github/actions/add-labels.action.js';
+import { addReaction } from './github/actions/add-reaction.action.js';
+import { mergePullRequest } from './github/actions/merge-pull-request.action.js';
+import { removeLabel } from './github/actions/remove-label.action.js';
+import { requestReviewers } from './github/actions/request-reviewers.action.js';
+import { close, reopen } from './github/actions/set-state.action.js';
 import { comment } from './github/comment.action.js';
 import { commentCreated } from './github/comment-created.trigger.js';
+import { pullRequestReviewTriggers, pullRequestTriggers } from './github/events/pull-requests.js';
 import { pullRequestMerged } from './github/pull-request-merged.trigger.js';
 import { pullRequestOpened } from './github/pull-request-opened.trigger.js';
 
@@ -19,9 +27,25 @@ const apps: AppDescriptor[] = [
   { id: 'sentry', name: 'Sentry', description: 'Error and performance alerts.', runnable: false },
 ];
 
-const triggers: Trigger[] = [pullRequestOpened, pullRequestMerged, commentCreated];
+const triggers: Trigger[] = [
+  pullRequestOpened,
+  pullRequestMerged,
+  ...pullRequestTriggers,
+  ...pullRequestReviewTriggers,
+  commentCreated,
+];
 
-const actions: Action[] = [comment];
+const actions: Action[] = [
+  comment,
+  addLabels,
+  removeLabel,
+  addAssignees,
+  requestReviewers,
+  close,
+  reopen,
+  addReaction,
+  mergePullRequest,
+];
 
 export interface Registry {
   describe(): RegistryResponse;
