@@ -32,7 +32,12 @@
           (click)="filter.set(option.id)"
         >
           {{ option.label }}
-          <span class="count">{{ countFor(option.id) }}</span>
+          @let count = countFor(option.id);
+          @if (count === null) {
+            <span class="skeleton count-bar" aria-hidden="true"></span>
+          } @else {
+            <span class="count">{{ count }}</span>
+          }
         </button>
       }
     </div>
@@ -46,7 +51,7 @@
             (change)="setZapFilter($event)"
           >
             <option value="">All Zaps</option>
-            @for (zap of zaps(); track zap.id) {
+            @for (zap of zaps() ?? []; track zap.id) {
               <option [value]="zap.id">{{ zap.name }}</option>
             }
           </select>
@@ -73,10 +78,21 @@
     <p class="notice notice-danger" role="alert">{{ message }}</p>
   }
 
-  <div class="panel list" [class.global]="global()">
+  <div
+    class="panel list"
+    [class.global]="global()"
+    [class.refreshing]="refreshing() && items() !== null"
+    aria-label="Run history"
+    [attr.aria-busy]="refreshing() ? true : null"
+  >
     @if (items(); as items) {
       @if (items.length === 0) {
-        <p class="empty">No runs in this period.</p>
+        <div class="empty">
+          <p>{{ emptyMessage() }}</p>
+          @if (filtered()) {
+            <button type="button" class="btn btn-sm" (click)="showAll()">Show all runs</button>
+          }
+        </div>
       }
       @for (delivery of items; track delivery.id) {
         <div class="run" [class.open]="expanded() === delivery.id">

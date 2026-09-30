@@ -28,22 +28,20 @@ import { DeliveryStatusBadge } from '../../ui/status-badge';
 const CLOCK_TICK_MS = 30_000;
 const COUNTS_DEBOUNCE_MS = 400;
 
-const FILTERS: { id: RunFilter; label: string }[] = [
-  { id: 'runs', label: 'All runs' },
-  { id: 'succeeded', label: 'Succeeded' },
-  { id: 'failed', label: 'Failed' },
-  { id: 'retrying', label: 'Retrying' },
-  { id: 'skipped', label: 'Skipped events' },
+const FILTERS: { id: RunFilter; label: string; noun: string }[] = [
+  { id: 'runs', label: 'All runs', noun: 'runs' },
+  { id: 'succeeded', label: 'Succeeded', noun: 'succeeded runs' },
+  { id: 'failed', label: 'Failed', noun: 'failed runs' },
+  { id: 'retrying', label: 'Retrying', noun: 'runs waiting to retry' },
+  { id: 'skipped', label: 'Skipped events', noun: 'skipped events' },
 ];
 
-const RANGES: { id: RunRange; label: string; ms: number | null }[] = [
-  { id: '24h', label: '24h', ms: 86_400_000 },
-  { id: '7d', label: '7 days', ms: 7 * 86_400_000 },
-  { id: '30d', label: '30 days', ms: 30 * 86_400_000 },
-  { id: 'all', label: 'All time', ms: null },
+const RANGES: { id: RunRange; label: string; ms: number | null; period: string }[] = [
+  { id: '24h', label: '24h', ms: 86_400_000, period: ' in the last 24 hours' },
+  { id: '7d', label: '7 days', ms: 7 * 86_400_000, period: ' in the last 7 days' },
+  { id: '30d', label: '30 days', ms: 30 * 86_400_000, period: ' in the last 30 days' },
+  { id: 'all', label: 'All time', ms: null, period: ' yet' },
 ];
-
-const EMPTY_COUNTS: RunCounts = { runs: 0, succeeded: 0, failed: 0, retrying: 0, skipped: 0 };
 
 export interface ZapOption {
   id: string;
@@ -96,7 +94,7 @@ export class RunsPanel {
   readonly zapId = input<string | null>(null);
   readonly repository = input('');
   readonly enabled = input(false);
-  readonly zaps = input<ZapOption[]>([]);
+  readonly zaps = input<ZapOption[] | null>(null);
 
   protected readonly filters = FILTERS;
   protected readonly ranges = RANGES;
@@ -104,7 +102,8 @@ export class RunsPanel {
   protected readonly range = signal<RunRange>('7d');
   protected readonly zapFilter = signal<string | null>(null);
   protected readonly items = signal<DeliveryDto[] | null>(null);
-  protected readonly counts = signal<RunCounts>(EMPTY_COUNTS);
+  protected readonly counts = signal<RunCounts | null>(null);
+  protected readonly refreshing = signal(false);
   protected readonly nextCursor = signal<string | null>(null);
   protected readonly loadingMore = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -120,8 +119,25 @@ export class RunsPanel {
 
   protected readonly global = computed(() => this.zapId() === null);
   protected readonly zapNames = computed(
-    () => new Map(this.zaps().map((zap) => [zap.id, zap.name])),
+    () => new Map((this.zaps() ?? []).map((zap) => [zap.id, zap.name])),
   );
+  protected readonly filtered = computed(
+    () => this.filter() !== 'runs' || this.zapFilter() !== null,
+  );
+  protected readonly emptyMessage = computed(() => {
+    const period = RANGES.find((range) => range.id === this.range())?.period ?? '';
+    const noun = FILTERS.find((filter) => filter.id === this.filter())?.noun ?? 'runs';
+    if (this.filtered()) {
+      const scope = this.zapFilter() === null ? '' : ' for this Zap';
+      return `No ${noun}${scope}${period}.`;
+    }
+    if (!this.global()) {
+      if (!this.enabled()) return 'This Zap is off. Turn it on to start receiving events.';
+      return `No runs${period}. Events from ${this.repository()} appear here as they arrive.`;
+    }
+    if (this.zaps()?.length === 0) return 'No runs yet. Create a Zap to start receiving events.';
+    return `No runs${period}.`;
+  });
   protected readonly resultUrl = resultUrl;
 
   private countsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -174,8 +190,13 @@ export class RunsPanel {
     return Object.entries(values).map(([key, value]) => [key, String(value)]);
   }
 
-  protected countFor(filter: RunFilter): number {
-    return this.counts()[filter];
+  protected countFor(filter: RunFilter): number | null {
+    return this.counts()?.[filter] ?? null;
+  }
+
+  protected showAll(): void {
+    this.filter.set('runs');
+    this.zapFilter.set(null);
   }
 
   protected zapNameOf(delivery: DeliveryDto): string {
@@ -302,21 +323,24 @@ export class RunsPanel {
     range: RunRange,
     zapFilter: string | null,
   ): Promise<void> {
+    const current = (): boolean =>
+      zapId === this.zapId() &&
+      filter === this.filter() &&
+      range === this.range() &&
+      zapFilter === this.zapFilter();
+    this.refreshing.set(true);
     try {
       const page = await this.fetch(zapId, filter, range, zapFilter);
-      const stale =
-        zapId !== this.zapId() ||
-        filter !== this.filter() ||
-        range !== this.range() ||
-        zapFilter !== this.zapFilter();
-      if (stale) return;
+      if (!current()) return;
       this.items.set(page.items);
       this.counts.set(page.counts);
       this.nextCursor.set(page.nextCursor);
       this.now.set(Date.now());
       this.error.set(null);
     } catch (error) {
-      this.error.set(toApiError(error).message);
+      if (current()) this.error.set(toApiError(error).message);
+    } finally {
+      if (current()) this.refreshing.set(false);
     }
   }
 

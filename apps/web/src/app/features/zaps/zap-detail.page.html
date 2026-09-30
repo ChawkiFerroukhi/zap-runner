@@ -35,10 +35,22 @@
           }
         </div>
       </div>
+    } @else if (!loadError() && !notFound()) {
+      <div class="page-header" aria-hidden="true">
+        <div class="title">
+          <span class="skeleton title-bar"></span>
+          <span class="skeleton status-pill"></span>
+        </div>
+      </div>
     }
   </div>
 
-  @if (loadError(); as message) {
+  @if (notFound()) {
+    <div class="panel empty-state">
+      <p>This Zap does not exist or was deleted.</p>
+      <a class="btn" routerLink="/zaps">Back to Zaps</a>
+    </div>
+  } @else if (loadError(); as message) {
     <p class="notice notice-danger" role="alert">{{ message }}</p>
   }
 
@@ -169,7 +181,7 @@
       [repository]="view.summary.repository"
       [enabled]="view.zap.enabled"
     />
-  } @else if (!loadError()) {
+  } @else if (!loadError() && !notFound()) {
     <div class="cards" aria-busy="true" aria-label="Loading Zap">
       <div class="card"><span class="skeleton block"></span></div>
       <div class="card"><span class="skeleton block"></span></div>

@@ -152,6 +152,8 @@
                             />
                             <span class="mono">{{ option }}</span>
                           </label>
+                        } @empty {
+                          <p class="no-match">No repositories match "{{ filter() }}".</p>
                         }
                       </div>
                     } @else {

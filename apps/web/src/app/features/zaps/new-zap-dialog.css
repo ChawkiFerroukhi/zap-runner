@@ -346,3 +346,10 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+.no-match {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}

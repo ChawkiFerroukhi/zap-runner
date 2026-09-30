@@ -155,7 +155,15 @@ const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
         } @else if (loadError(); as message) {
           <p class="notice notice-danger" role="alert">{{ message }}</p>
         } @else {
-          <span class="skeleton line"></span>
+          <div class="key-form" aria-busy="true" aria-label="Loading Copilot settings">
+            <span class="skeleton line"></span>
+            <div class="providers" aria-hidden="true">
+              @for (placeholder of [1, 2, 3]; track placeholder) {
+                <span class="skeleton provider-bar"></span>
+              }
+            </div>
+            <span class="skeleton input-bar" aria-hidden="true"></span>
+          </div>
         }
       </section>
     </div>
@@ -272,6 +280,14 @@ const KEY_PLACEHOLDERS: Record<CopilotProviderId, string> = {
     .line {
       width: 40%;
       height: 12px;
+    }
+    .provider-bar {
+      height: 62px;
+      border-radius: var(--radius-md);
+    }
+    .input-bar {
+      height: 36px;
+      border-radius: var(--radius-md);
     }
   `,
 })

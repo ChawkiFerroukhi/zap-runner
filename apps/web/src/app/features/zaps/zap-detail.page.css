@@ -71,3 +71,14 @@
 .block {
   height: 160px;
 }
+
+.title-bar {
+  width: 240px;
+  height: 22px;
+}
+
+.status-pill {
+  width: 56px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+}

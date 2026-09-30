@@ -45,6 +45,7 @@ export class ZapDetailPage {
   private readonly resolution = signal<TestRunResult | null>(null);
   private readonly resolutionFailed = signal(false);
   protected readonly loadError = signal<string | null>(null);
+  protected readonly notFound = signal(false);
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = signal(false);
   protected readonly testing = signal(false);
@@ -139,12 +140,17 @@ export class ZapDetailPage {
   }
 
   private async load(zapId: string): Promise<void> {
+    this.zap.set(null);
+    this.notFound.set(false);
+    this.loadError.set(null);
     try {
       const [zap] = await Promise.all([this.api.get(zapId), this.registry.load()]);
       this.zap.set(zap);
       await this.resolve(zapId);
     } catch (error) {
-      this.loadError.set(toApiError(error).message);
+      const detail = toApiError(error);
+      if (detail.code === 'not_found') this.notFound.set(true);
+      else this.loadError.set(detail.message);
     }
   }
 

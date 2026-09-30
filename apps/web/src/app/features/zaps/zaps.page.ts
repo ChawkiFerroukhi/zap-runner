@@ -48,7 +48,11 @@ const SKELETON_WIDTHS: [string, string][] = [
         <p class="notice notice-danger" role="alert">{{ message }}</p>
       }
 
-      <div class="panel table">
+      <div
+        class="panel table"
+        aria-label="Zaps"
+        [attr.aria-busy]="rows() === null && !error() ? true : null"
+      >
         @if (rows(); as rows) {
           @if (rows.length === 0) {
             <div class="empty-state">

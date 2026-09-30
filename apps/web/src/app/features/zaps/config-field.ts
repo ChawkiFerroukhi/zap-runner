@@ -48,10 +48,17 @@ export interface TemplateFocus {
               }
             </select>
           </div>
-          <span class="field-help"
-            >Only repositories where you are an admin appear, since Zap Runner has to create a
-            webhook.</span
-          >
+          @if (repositories()?.length === 0 && !repositoriesError()) {
+            <span class="field-help"
+              >You are not an admin of any repository. Create one on GitHub or ask for admin access,
+              then reload this page.</span
+            >
+          } @else {
+            <span class="field-help"
+              >Only repositories where you are an admin appear, since Zap Runner has to create a
+              webhook.</span
+            >
+          }
           @if (repositoriesError(); as message) {
             <span class="field-error">{{ message }}</span>
           }

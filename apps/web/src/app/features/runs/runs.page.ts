@@ -12,7 +12,7 @@ import { RunsPanel, type ZapOption } from '../zaps/runs-panel';
 export class RunsPage {
   private readonly api = inject(ZapsApi);
   private readonly toasts = inject(ToastService);
-  protected readonly zaps = signal<ZapOption[]>([]);
+  protected readonly zaps = signal<ZapOption[] | null>(null);
 
   constructor() {
     void this.api
